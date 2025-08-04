@@ -1,0 +1,8 @@
+venv
+Data/*
+.env
+grant_applications/*
+
+__pycache__
+
+.DS_Store
