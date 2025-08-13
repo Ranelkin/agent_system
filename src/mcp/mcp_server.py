@@ -64,7 +64,7 @@ def document_codebase(dir: str) -> dict:
           "status": "error", 
           "files_processed": processed_files,
           "count": len(processed_files),
-          "message": e
+          "message": str(e)
          }
     
   
