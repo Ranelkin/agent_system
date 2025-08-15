@@ -4,7 +4,7 @@ from typing_extensions import TypedDict
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
-from model.agent import llm 
+from src.model.agent import llm 
 
 class State(TypedDict):
     # Messages have the type "list". The `add_messages` function

@@ -32,7 +32,6 @@ def document_codebase(dir: str) -> dict:
             f = f_base.get_file()
             logger.info(f"Processing file: {f}")
         
-            f = f_base.get_file()
             code: str = f_base.file_content(f)
             content = " code: " + code
 
@@ -51,12 +50,12 @@ def document_codebase(dir: str) -> dict:
             f_base.update_file_content(f, updated_file)
             processed_files.append(f)
         
-            return {
-            "status": "success",
-            "files_processed": processed_files,
-            "count": len(processed_files),
-            "message": None
-        }
+        return {
+        "status": "success",
+        "files_processed": processed_files,
+        "count": len(processed_files),
+        "message": None
+    }
                 
     except Exception as e: 
         logger.error(f"Failed to create documentation for {dir}: {e}")
