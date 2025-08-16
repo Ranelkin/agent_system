@@ -49,19 +49,31 @@ tools = [
     Tool(
         name="document_codebase",
         func=mcp_tool.document_codebase,
-        description="Generate documentation for a codebase in the specified directory"
+        description="Generate documentation for a codebase. Pass the full directory path as the argument."
     )
 ]
 
 # Create ReAct agent with LangGraph
-system_prompt = """You are an AI assistant that can search the web or document codebases. 
-For queries requesting to document a codebase, use the Document Codebase tool with the provided directory. 
-For other queries, use the Web Search tool if applicable. Respond with the tool's output."""
+system_prompt = """You are an AI assistant that can search the web or document codebases.
+
+When asked to document a codebase:
+1. Extract the exact directory path from the user's message
+2. Call the document_codebase tool with that exact path as the argument
+3. Return the tool's output
+
+For other queries, use the Web Search tool if applicable."""
+
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
-    ("human", "{{input}}")
+    ("human", "{input}")  
 ])
-agent = create_react_agent(llm, tools, prompt=prompt)
+
+agent = create_react_agent(
+    llm, 
+    tools, 
+    prompt=prompt,
+    max_iterations=5  
+)
 
 # Chat loop
 def chat_with_agent():
@@ -69,8 +81,19 @@ def chat_with_agent():
         query = input("Enter your query (or 'exit' to quit): ")
         if query.lower() == 'exit':
             break
-        response = agent.invoke({"input": query})
-        print(response["output"])
+        try:
+            # Add recursion_limit config to prevent infinite loops
+            response = agent.invoke(
+                {"messages": [("human", query)]},
+                config={"recursion_limit": 10}
+            )
+            # Extract the final message from the response
+            if "messages" in response:
+                print(response["messages"][-1].content)
+            else:
+                print(response)
+        except Exception as e:
+            print(f"Error: {e}")
 
 if __name__ == "__main__":
     chat_with_agent()
