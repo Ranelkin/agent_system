@@ -2,18 +2,19 @@ from langchain.tools import Tool
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.prebuilt import create_react_agent
 import os, json, asyncio
-from mcp import ClientSession, StdioServerParameters
+from mcp_server import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from typing import Any, Dict
 from src.model.agent import llm
-
+from mcp_server.mcp_server import mcp
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
 class MCPTool:
     def __init__(self, server_command):
         self.server_command = server_command
         self.module_path = "src.mcp.mcp_server"
-
+        self.server_connection = mcp.run()
+        
     def _call_mcp_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         return asyncio.run(self._async_call_mcp_tool(tool_name, args))
 
@@ -65,14 +66,13 @@ For other queries, use the Web Search tool if applicable."""
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
-    ("human", "{input}")  
+    ("human", "{{input}}")  
 ])
 
 agent = create_react_agent(
     llm, 
     tools, 
-    prompt=prompt,
-    max_iterations=5  
+    prompt=prompt
 )
 
 # Chat loop
