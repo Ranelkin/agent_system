@@ -13,7 +13,7 @@ class MCPTool:
     def __init__(self, server_command):
         self.server_command = server_command
         self.module_path = "src.mcp.mcp_server"
-        self.server_connection = mcp.run()
+        self.mcp_server = mcp.run()
         
     def _call_mcp_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         return asyncio.run(self._async_call_mcp_tool(tool_name, args))
