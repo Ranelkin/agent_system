@@ -54,8 +54,8 @@ class FileBase():
             return content
         except Exception as e: 
             logger.error(f"Failed to load File Content for {file}: {e}")
-            return None  # Return None instead of nothing
-    
+            return None  
+        
     def update_file_content(self, file: str, updated_content: str):
         """Update file with new content
         
@@ -64,7 +64,7 @@ class FileBase():
             updated_content: New content to write
         """
         try:  
-            f_name = os.path.basename(file)  # Better way to get filename
+            f_name = os.path.basename(file) 
             with open(file, "w", encoding='utf-8') as f: 
                 f.write(updated_content)
                 logger.info(f'Updated file: {f_name}')

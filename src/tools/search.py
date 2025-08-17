@@ -8,5 +8,7 @@ web_search = TavilySearch(max_results=2)
 def search_web(search: str): 
     return web_search.invoke(search)
 
-out = web_search.invoke("What's a 'node' in LangGraph?")
-print(out)
+
+if __name__ == '__main__': 
+    out = web_search.invoke("What's a 'node' in LangGraph?")
+    print(out)
