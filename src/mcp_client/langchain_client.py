@@ -2,30 +2,29 @@ from langchain.tools import Tool
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.prebuilt import create_react_agent
 import os, json, asyncio
-from mcp_server import ClientSession, StdioServerParameters
+from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from typing import Any, Dict
 from src.model.agent import llm
-from mcp_server.mcp_server import mcp
+
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
 class MCPTool:
     def __init__(self, server_command):
         self.server_command = server_command
-        self.module_path = "src.mcp.mcp_server"
-        self.mcp_server = mcp.run()
+        self.module_path = "src.mcp_server.mcp_server"
+        self.mcp_server = StdioServerParameters(
+            command="python3",
+            args=["-m", self.module_path],
+            env={}
+        )
         
     def _call_mcp_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         return asyncio.run(self._async_call_mcp_tool(tool_name, args))
 
     async def _async_call_mcp_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
-        server_params = StdioServerParameters(
-            command="python",
-            args=["-m", self.module_path],
-            env={}
-        )
         try:
-            async with stdio_client(server_params) as (read, write):
+            async with stdio_client(self.mcp_server) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     result = await session.call_tool(tool_name, arguments=args)
@@ -40,7 +39,7 @@ class MCPTool:
         return self._call_mcp_tool("document_codebase", {"dir": directory})
 
 # Create tools
-mcp_tool = MCPTool(["python3", "-m", "src.mcp.mcp_server"])
+mcp_tool = MCPTool(["python3", "-m", "src.mcp_server.mcp_server"])
 tools = [
     Tool(
         name="web_search",
@@ -79,7 +78,7 @@ agent = create_react_agent(
 def chat_with_agent():
     while True:
         query = input("Enter your query (or 'exit' to quit): ")
-        if query.lower() == 'exit':
+        if query.lower() in ['exit', 'quit', 'q']:
             break
         try:
             # Add recursion_limit config to prevent infinite loops
