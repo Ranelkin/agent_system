@@ -29,15 +29,17 @@ class FileBase():
 
             while stack:
                 curr = stack.pop()
-                result.append(curr)
                 if os.path.isdir(curr):
                     try:
                         children = [os.path.join(curr, child) for child in os.listdir(curr)]
                         stack.extend(reversed(children))
                     except PermissionError:
                         continue
+                else:
+                    result.append(curr)  
+
             # Filter out files with specific substrings
-            result = list(filter(lambda x: "__" not in x and ".cpython" not in x, result))
+            result = [f for f in result if f.endswith('.py') and "__" not in f and ".cpython" not in f]
             self.files = result
             logger.info(f'Traversed filebase. Found {len(result)} files')
             return len(result)
@@ -87,3 +89,4 @@ class FileBase():
         """
         if self.files:
             return self.files.pop()
+        return None 

@@ -16,6 +16,8 @@ mcp = FastMCP(
 @mcp.tool 
 def search(search_term: str): 
     """Searches the web and returns results"""
+    logger.info("Search tool invoked")
+    logger.info(f"Search term: {search_term}")
     return search_web(search_term)
 
 @mcp.tool 
@@ -46,7 +48,7 @@ def document_codebase(dir: str) -> dict:
             logger.info(f"Processing file {i+1}/{num_f}: {f}")
             
             if f is None:
-                logger.warning(f"get_file() returned None at iteration {i}")
+                logger.warning(f"Finished processing files")
                 break
                 
             logger.info(f"Processing file: {f}")
