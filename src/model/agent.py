@@ -9,4 +9,4 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
 # Initialize the chat model using the specified model name
-llm = init_chat_model("openai:gpt-4.1-nano-2025-04-14")
+llm = init_chat_model("openai:gpt-5-nano-2025-08-07")

@@ -66,8 +66,14 @@ class MCPSessionManager:
             Returns:
                 str: The documentation output.
             """
-            return self.mcp_tool.call_tool("document_codebase", {"dir": directory})
-        
+            logger.info(f"document_tool called with directory: '{directory}'")
+            logger.info(f"Directory type: {type(directory)}")
+            logger.info(f"Directory repr: {repr(directory)}")
+            
+            result = self.mcp_tool.call_tool("document_codebase", {"dir": directory})
+            logger.info(f"document_tool result: {result}")
+            return result
+                
         # Return the list of tools with descriptions and functions
         return [
             Tool(
@@ -97,23 +103,19 @@ def chat_session():
         system_prompt = """You are an AI assistant that can search the web or document codebases.
 
         When asked to document a codebase:
-        1. Extract the exact directory path from the user's message
+        1. Extract the EXACT directory path from the user's message
         2. Call the document_codebase tool with that exact path as the argument
         3. Return the tool's output
+        4. Do NOT make multiple calls or suggest alternative paths
 
         For other queries, use the Web Search tool if applicable."""
         
-        # Create chat prompt template
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", "{{input}}")
-        ])
-
-        # Instantiate the reactive agent
+        # Create the agent WITHOUT a prompt template
+        # create_react_agent handles the messaging internally
         agent = create_react_agent(
             llm, 
-            tools, 
-            prompt=prompt
+            tools,
+            prompt=system_prompt  # Pass system prompt as state_modifier
         )
         
         # Chat loop
@@ -126,8 +128,8 @@ def chat_session():
             logger.info("\nAssistant: ")
             try:
                 response = agent.invoke(
-                    {"messages": [("human", query)]},
-                    config={"recursion_limit": 100}
+                    {"messages": [("system", system_prompt), ("human", query)]},
+                    config={"recursion_limit": 50}
                 )
                 
                 # Extract and log the response message content
@@ -150,4 +152,25 @@ def chat_session():
         logger.info("Finished processing request")
         manager.stop()
         logger.info("\n👋 Goodbye!")
+        
+def test_direct_call():
+    """Test the MCP tool directly without the agent"""
+    manager = MCPSessionManager()
+    manager.start()
+    
+    try:
+        # Call the tool directly
+        test_path = "/Users/ranelkarimov/Library/Mobile Documents/com~apple~CloudDocs/Studium /Semester 6/AI Agents Forschungsprojekt/ExampleAgent/src_cb/util"
+        logger.info(f"Testing direct call with path: {test_path}")
+        
+        tools = manager.get_tools()
+        document_tool = tools[1].func  # Get the document_codebase tool
+        
+        result = document_tool(test_path)
+        logger.info(f"Direct call result: {result}")
+        
+    finally:
+        manager.stop()
 
+if __name__ == '__main__': 
+    test_direct_call()
