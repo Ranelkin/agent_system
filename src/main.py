@@ -1,5 +1,4 @@
 from log_config import setup_logging
-import asyncio
 from dotenv import load_dotenv
 from mcp_client.session_manager import chat_session
 
