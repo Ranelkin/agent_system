@@ -32,35 +32,3 @@ llm = init_chat_model("openai:gpt-5-nano-2025-08-07")
 # - OPENAI_API_KEY is read at import time; ensure environment variables are present
 # - llm is created at import time; subsequent usage should handle potential None or
 #   initialization failures depending on dependencies and API availability
-
-
-def UNIT_test():
-    """
-    Simple unit tests for the module's initialization state.
-
-    Returns:
-        bool: True if basic expectations are met, False otherwise.
-
-    Expectations:
-        - OPENAI_API_KEY is defined in the module's global namespace
-        - llm is defined in the module's global namespace and is not None
-        - OPENAI_API_KEY, if present, is a string
-    """
-    try:
-        # Existence checks
-        assert 'OPENAI_API_KEY' in globals(), "OPENAI_API_KEY is not defined in module globals"
-        assert 'llm' in globals(), "llm is not defined in module globals"
-
-        # Type checks
-        if OPENAI_API_KEY is not None:
-            assert isinstance(OPENAI_API_KEY, str), "OPENAI_API_KEY should be a string when present"
-
-        # Object check
-        assert llm is not None, "llm should not be None"
-
-    except AssertionError:
-        return False
-    except Exception:
-        return False
-
-    return True

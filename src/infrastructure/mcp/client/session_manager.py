@@ -151,24 +151,6 @@ def chat_session():
         manager.stop()
         logger.info("\n👋 Goodbye!")
         
-def test_direct_call():
-    """Test the MCP tool directly without the agent"""
-    manager = MCPSessionManager()
-    manager.start()
-    
-    try:
-        # Call the tool directly
-        test_path = "/Users/ranelkarimov/Library/Mobile Documents/com~apple~CloudDocs/Studium /Semester 6/AI Agents Forschungsprojekt/ExampleAgent/src_cb/util"
-        logger.info(f"Testing direct call with path: {test_path}")
-        
-        tools = manager.get_tools()
-        document_tool = tools[1].func  # Get the document_codebase tool
-        
-        result = document_tool(test_path)
-        logger.info(f"Direct call result: {result}")
-        
-    finally:
-        manager.stop()
 
-if __name__ == '__main__': 
-    test_direct_call()
+
+
