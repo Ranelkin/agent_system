@@ -1,5 +1,5 @@
 from IPython.display import Image, display
-from graph import graph
+from ..infrastructure.llm.graph import graph
 
 try:
     display(Image(graph.get_graph().draw_mermaid_png()))

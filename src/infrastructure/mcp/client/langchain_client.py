@@ -3,7 +3,7 @@ import json
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from typing import Any, Dict, Optional
-from log_config import setup_logging
+from ....shared.log_config import setup_logging
 logger = setup_logging("session_manager")
 
 class MCPTool:
@@ -14,7 +14,7 @@ class MCPTool:
         self.server_command = server_command
         self.mcp_server = StdioServerParameters(
             command="python3",
-            args=["-m", "src.mcp_server.mcp_server"],
+            args=["-m", "src.infrastructure.mcp.server.mcp_server"],
             env=None  
         )
         self.session: Optional[ClientSession] = None

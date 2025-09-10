@@ -1,9 +1,9 @@
 from langchain.tools import Tool
 from langgraph.prebuilt import create_react_agent
 from typing import Optional
-from .langchain_client import MCPTool
-from model.agent import llm
-from log_config import setup_logging
+from ....infrastructure.mcp.client.langchain_client import MCPTool
+from ....model.agent import llm
+from ....shared.log_config import setup_logging
 
 logger = setup_logging("session_manager")
 
