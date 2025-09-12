@@ -86,6 +86,7 @@ class MCPSessionManager:
             )
         ]
 
+
 def chat_session():
     """Main chat session - fully synchronous
     

@@ -1,12 +1,9 @@
-from util import FileBase
-from ....infrastructure.mcp.server.mcp_server import mcp 
 from ....shared.log_config import setup_logging
-from util.FileBase import FileBase
+from ....util.FileBase import FileBase
 from ....infrastructure.llm.graph import stream_graph_updates
 
 logger = setup_logging("test_service")
 
-@mcp.tool 
 def create_unit_tests(dir: str) -> dict: 
     """_summary_"""
     logger.info(f"Start creating unit tests for codebase: {dir}")

@@ -1,11 +1,9 @@
-from ....infrastructure.mcp.server.mcp_server import mcp 
 from ....shared.log_config import setup_logging
-from util.FileBase import FileBase
+from ....util.FileBase import FileBase
 from ....infrastructure.llm.graph import stream_graph_updates
 
 logger = setup_logging("comment_code_service")
 
-@mcp.tool 
 def comment_codebase(dir: str) -> dict: 
     """Traverese the directory and comments out / document the codebase
 
@@ -103,7 +101,7 @@ def comment_codebase(dir: str) -> dict:
          }
       
       
-@mcp.tool 
+
 def document_codebase(dir: str) -> dict:
     """Traverses the directory and creates documentation"""
     logger.info(f"Starting to document codebase at: {dir}")
