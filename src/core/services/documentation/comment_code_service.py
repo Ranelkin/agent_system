@@ -18,12 +18,15 @@ def comment_codebase(dir: str) -> dict:
     try:
         logger.info(f"Starting documentation for directory: {dir}")
         f_base = FileBase(dir)
-        f_base.num_files = f_base.traverse()
-        logger.info(f"Found {f_base.num_files} files to process")
+        f_base.traverse()
+
+        num_files = f_base.get_num_files()
+        
+        logger.info(f"Found {num_files} files to process")
         
         logger.info(f"Files list: {f_base.files}")
         
-        if f_base.num_files == 0:
+        if num_files == 0:
             logger.warning("No files found to process")
             return {
                 "status": "success",
@@ -32,10 +35,10 @@ def comment_codebase(dir: str) -> dict:
                 "message": "No files found to process"
             }
         
-        for i in range(f_base.num_files):
-            logger.info(f"Processing file {i+1}/{f_base.num_files}")
+        for i in range(num_files):
+            logger.info(f"Processing file {i+1}/{num_files}")
             f = f_base.get_file()
-            logger.info(f"Processing file {i+1}/{f_base.num_files}: {f}")
+            logger.info(f"Processing file {i+1}/{num_files}: {f}")
             
             if f is None:
                 logger.warning(f"Finished processing files")
@@ -109,12 +112,13 @@ def document_codebase(dir: str) -> dict:
     try:
         logger.info(f"Starting documentation for directory: {dir}")
         f_base = FileBase(dir)
-        f_base.num_files = f_base.traverse()
-        logger.info(f"Found {f_base.num_files} files to process")
+        f_base.traverse()
+        num_files = f_base.get_num_files()
+        logger.info(f"Found {num_files} files to process")
         
         logger.info(f"Files list: {f_base.files}")
         
-        if f_base.num_files == 0:
+        if num_files == 0:
             logger.warning("No files found to process")
             return {
                 "status": "success",
@@ -123,10 +127,10 @@ def document_codebase(dir: str) -> dict:
                 "message": "No files found to process"
             }
         
-        for i in range(f_base.num_files):
-            logger.info(f"Processing file {i+1}/{f_base.num_files}")
+        for i in range(num_files):
+            logger.info(f"Processing file {i+1}/{num_files}")
             f = f_base.get_file()
-            logger.info(f"Processing file {i+1}/{f_base.num_files}: {f}")
+            logger.info(f"Processing file {i+1}/{num_files}: {f}")
             
             if f is None:
                 logger.warning(f"Finished processing files")

@@ -13,8 +13,8 @@ class FileBase():
         """
         self.dir = dir
         logger.info(f"File Base initialized with dir: {dir}")
-        self.files: list[str] = None
-        self.num_files = None 
+        self.files: list[str] = []
+        self.num_files = 0 
         
     def traverse(self) -> None:
         """
@@ -42,8 +42,9 @@ class FileBase():
             # Filter out files with specific substrings
             result = [f for f in result if f.endswith('.py') and "__" not in f and ".cpython" not in f]
             self.files = result
-            logger.info(f'Traversed filebase. Found {len(result)} files')
             self.num_files = len(result)
+            logger.info(f'Traversed filebase. Found {self.num_files} files')
+            
         except Exception as e:
             logger.error(f"Failed to traverse FileBase: {e}")
 
@@ -98,4 +99,12 @@ class FileBase():
         if self.files:
             return self.files.pop()
         return None
+    
+    def get_num_files(self) -> int: 
+        return self.num_files
 
+if __name__ == '__main__': 
+    f_base = FileBase("/Users/ranelkarimov/Library/Mobile Documents/com~apple~CloudDocs/Studium /Semester 6/AI Agents Forschungsprojekt/AgentArchitectureSystem/src/shared")
+    f_base.traverse()
+
+    logger.info(f"Num files: {f_base.num_files}")
