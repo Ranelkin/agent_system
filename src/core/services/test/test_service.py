@@ -81,7 +81,7 @@ def create_unit_tests(dir: str) -> dict:
             "message": None
         }
     except Exception as e: 
-        logger.error()
+        logger.error(f"Failed to create unit test: {e}")
         return {
           "status": "error", 
           "files_processed": processed_files,

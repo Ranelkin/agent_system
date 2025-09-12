@@ -71,7 +71,19 @@ class MCPSessionManager:
             result = self.mcp_tool.call_tool("document_codebase", {"dir": directory})
             logger.info(f"document_tool result: {result}")
             return result
-                
+        
+        def unit_test_tool(dir: str) -> str: 
+            """Use the MCP tool to generate unit tests for a codebase 
+
+            Args:
+                dir (str): The directory path 
+
+            Returns:
+                str: The unit test output 
+            """
+            logger.info(f"Start to create unit tests for dir: {dir}")
+            result = self.mcp_tool.call_tool("create_unit_tests", {"dir": dir}) 
+            return result 
         # Return the list of tools with descriptions and functions
         return [
             Tool(
@@ -83,6 +95,11 @@ class MCPSessionManager:
                 name="document_codebase", 
                 func=document_tool,
                 description="Generate documentation for a codebase. Pass the full directory path as the argument."
+            ),
+            Tool(
+                name="create_unit_test", 
+                func=unit_test_tool, 
+                description="Generate Unit tests for a codebase. Pass the full directory path as the argument."
             )
         ]
 
