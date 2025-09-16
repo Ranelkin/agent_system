@@ -55,22 +55,6 @@ class MCPSessionManager:
                 str: The search results.
             """
             return self.mcp_tool.call_tool("search", {"search_term": query})
-            
-        def document_tool(directory: str) -> str:
-            """Use the MCP tool to generate documentation for a codebase.
-            
-            Args:
-                directory (str): The directory path.
-            Returns:
-                str: The documentation output.
-            """
-            logger.info(f"document_tool called with directory: '{directory}'")
-            logger.info(f"Directory type: {type(directory)}")
-            logger.info(f"Directory repr: {repr(directory)}")
-            
-            result = self.mcp_tool.call_tool("document_codebase", {"dir": directory})
-            logger.info(f"document_tool result: {result}")
-            return result
         
         def unit_test_tool(dir: str) -> str: 
             """Use the MCP tool to generate unit tests for a codebase 
@@ -84,7 +68,13 @@ class MCPSessionManager:
             logger.info(f"Start to create unit tests for dir: {dir}")
             result = self.mcp_tool.call_tool("create_unit_tests", {"dir": dir}) 
             return result 
+        
+        def comment_codebase_tool(dir: str)->str: 
+            logger.info(f"Start to commnt out codebase for dir: {dir}")
+            result = self.mcp_tool.call_tool("comment_codebase", {"dir": dir}) 
+            return result
         # Return the list of tools with descriptions and functions
+        
         return [
             Tool(
                 name="web_search",
@@ -92,9 +82,9 @@ class MCPSessionManager:
                 description="Search the web for information"
             ),
             Tool(
-                name="document_codebase", 
-                func=document_tool,
-                description="Generate documentation for a codebase. Pass the full directory path as the argument."
+                name="comment_codebase",
+                func=comment_codebase_tool,
+                description="Tool to Comment out / document codebase"
             ),
             Tool(
                 name="create_unit_test", 
