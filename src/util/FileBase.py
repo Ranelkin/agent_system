@@ -103,6 +103,17 @@ class FileBase():
     def get_num_files(self) -> int: 
         return self.num_files
 
+    def create_file(self, file: str, content: str) -> None: 
+        """Creates new file 
+
+        Args:
+            file (str): filepath
+            content (str): file content
+        """
+        with open(file, 'w') as f: 
+            logger.info(f"Created file {file.split("/")[-1]} at dir: {file.split("/")[:-1]}")
+            f.write(content)
+        
 if __name__ == '__main__': 
     f_base = FileBase("/Users/ranelkarimov/Library/Mobile Documents/com~apple~CloudDocs/Studium /Semester 6/AI Agents Forschungsprojekt/AgentArchitectureSystem/src/shared")
     f_base.traverse()
