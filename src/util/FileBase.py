@@ -6,10 +6,7 @@ logger = setup_logging('FileBase')
 class FileBase():
     def __init__(self, dir: str) -> None:
         """
-        Initializes the FileBase object with a directory path.
-        
-        Args:
-            dir (str): Path to the directory to traverse.
+    
         """
         self.dir = dir
         logger.info(f"File Base initialized with dir: {dir}")
@@ -18,11 +15,7 @@ class FileBase():
         
     def traverse(self) -> None:
         """
-        Traverses the directory tree starting from self.dir, collecting all file paths.
-        Filters out files with names containing '__' or '.cpython'.
-
-        Returns:
-            int: Number of collected files.
+       
         """
         try:
             stack = [self.dir]
@@ -50,13 +43,7 @@ class FileBase():
 
     def file_content(self, file: str) -> str:
         """
-        Reads and returns the content of a specified file.
-
-        Args:
-            file (str): Path to the file to read.
-
-        Returns:
-            str: Content of the file.
+      
         """
         try:
             content: str
@@ -68,11 +55,7 @@ class FileBase():
 
     def update_file_content(self, file: str, updated_content: str):
         """
-        Overwrites the content of the specified file with provided content.
-
-        Args:
-            file (str): Path to the file to update.
-            updated_content (str): New content to write into the file.
+       
         """
         def write_file(f): 
             with open(f, 'w') as f:
@@ -91,10 +74,6 @@ class FileBase():
 
     def get_file(self) -> str:
         """
-        Retrieves and removes the last file from the list of files.
-
-        Returns:
-            str: Path of the file popped from the list.
         """
         if self.files:
             return self.files.pop()
@@ -104,11 +83,7 @@ class FileBase():
         return self.num_files
 
     def create_file(self, file: str, content: str) -> None: 
-        """Creates new file 
-
-        Args:
-            file (str): filepath
-            content (str): file content
+        """
         """
         with open(file, 'w') as f: 
             logger.info(f"Created file {file.split("/")[-1]} at dir: {file.split("/")[:-1]}")
