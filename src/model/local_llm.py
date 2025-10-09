@@ -2,16 +2,30 @@ import torch
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 from typing import List, Dict, Optional, Any, Union
 import os
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.outputs import ChatResult, ChatGeneration
 
-class AutoLLM:
-    """Automatically uses all available GPUs/CPUs for LLM inference"""
+class AutoLLM(BaseChatModel):
+    """LangChain-compatible LLM that automatically uses all available GPUs/CPUs"""
+    
+    model_id: str = "openai/gpt-oss-20b"
+    dtype: Optional[str] = None
+    load_in_8bit: bool = False
+    load_in_4bit: bool = False
+    pipe: Any = None
+    device_map: str = "auto"
+    num_gpus: int = 0
+    supports_chat: bool = False
     
     def __init__(
         self,
         model_id: str = "openai/gpt-oss-20b",
         dtype: Optional[str] = None,
         load_in_8bit: bool = False,
-        load_in_4bit: bool = False
+        load_in_4bit: bool = False,
+        _skip_load: bool = False,
+        **kwargs
     ):
         """
         Initialize pipeline with automatic hardware detection
@@ -21,11 +35,20 @@ class AutoLLM:
             dtype: "auto", "float16", "bfloat16", "float32", or None for auto
             load_in_8bit: Use 8-bit quantization for memory efficiency
             load_in_4bit: Use 4-bit quantization for even more memory efficiency
+            _skip_load: Internal flag to skip model loading (for bind_tools)
         """
+        super().__init__(**kwargs)
         self.model_id = model_id
+        self.dtype = dtype
+        self.load_in_8bit = load_in_8bit
+        self.load_in_4bit = load_in_4bit
+        
+        # Skip loading if this is a bound copy
+        if _skip_load:
+            return
         
         # Detect available hardware
-        self.device_map = "auto"  # Automatically distribute across all GPUs/CPU
+        self.device_map = "auto"
         self.num_gpus = torch.cuda.device_count()
         
         print(f"Detected {self.num_gpus} GPU(s)")
@@ -40,10 +63,8 @@ class AutoLLM:
         # Determine dtype based on hardware
         if dtype is None or dtype == "auto":
             if self.num_gpus > 0:
-                # Use float16 on GPU for efficiency
                 torch_dtype = torch.float16
             else:
-                # Use float32 on CPU (more stable)
                 torch_dtype = torch.float32
         elif isinstance(dtype, str):
             dtype_map = {
@@ -59,9 +80,7 @@ class AutoLLM:
         model_kwargs = {
             "device_map": self.device_map,
             "torch_dtype": torch_dtype
-            
         }
-        
         
         if self.num_gpus > 0:  
             if load_in_4bit:
@@ -87,7 +106,6 @@ class AutoLLM:
             print(f"Error loading model with auto settings: {e}")
             print("Attempting fallback loading...")
             
-            # Fallback: Try simpler loading
             fallback_kwargs = {
                 "device_map": self.device_map,
                 "torch_dtype": torch_dtype,
@@ -112,13 +130,101 @@ class AutoLLM:
         print("Model loaded successfully!")
         self._print_memory_usage()
     
-    def _format_messages(self, messages: Union[List[Dict[str, str]], str]) -> str:
-        """Convert messages to appropriate format for the model"""
-        # If it's already a string, return it
-        if isinstance(messages, str):
-            return messages
+    @property
+    def _llm_type(self) -> str:
+        """Return type of LLM."""
+        return "local_huggingface"
+    
+    def bind_tools(
+        self,
+        tools: List[Any],
+        **kwargs: Any,
+    ) -> "AutoLLM":
+        """Bind tools to the model - required for create_react_agent.
         
-        # If model supports chat templates, let the pipeline handle it
+        For local models without native tool support, we store the tools
+        but don't actually bind them to the model. The agent framework
+        will handle tool calling through prompting.
+        """
+        # Create a new instance without loading the model again
+        bound = self.__class__(
+            model_id=self.model_id,
+            dtype=self.dtype,
+            load_in_8bit=self.load_in_8bit,
+            load_in_4bit=self.load_in_4bit,
+            _skip_load=True
+        )
+        # Copy all the loaded attributes
+        bound.pipe = self.pipe
+        bound.device_map = self.device_map
+        bound.num_gpus = self.num_gpus
+        bound.supports_chat = self.supports_chat
+        
+        # Store tools for reference
+        bound._bound_tools = tools
+        
+        return bound
+    
+    def with_structured_output(self, schema: Any, **kwargs: Any) -> "AutoLLM":
+        """Return a model that outputs structured data.
+        
+        For local models, this is a pass-through since we don't have
+        native structured output support. The agent framework will
+        handle parsing.
+        """
+        return self
+    
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate chat completion from messages - required by BaseChatModel"""
+        
+        # Convert LangChain messages to the format our pipeline expects
+        formatted_messages = self._convert_messages(messages)
+        
+        # Generate response
+        max_new_tokens = kwargs.pop("max_new_tokens", 256)
+        temperature = kwargs.pop("temperature", 0.7)
+        top_p = kwargs.pop("top_p", 0.9)
+        do_sample = kwargs.pop("do_sample", True)
+        
+        response_text = self._generate_text(
+            formatted_messages,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            do_sample=do_sample,
+            **kwargs
+        )
+        
+        # Return in LangChain format
+        message = AIMessage(content=response_text)
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
+    
+    def _convert_messages(self, messages: List[BaseMessage]) -> List[Dict[str, str]]:
+        """Convert LangChain messages to dict format"""
+        converted = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                converted.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                converted.append({"role": "assistant", "content": msg.content})
+            elif isinstance(msg, SystemMessage):
+                converted.append({"role": "system", "content": msg.content})
+            else:
+                # Fallback for other message types
+                converted.append({"role": "user", "content": str(msg.content)})
+        return converted
+    
+    def _format_messages(self, messages: List[Dict[str, str]]) -> str:
+        """Convert messages to appropriate format for the model"""
+        
+        # If model supports chat templates, return as-is for pipeline
         if self.supports_chat:
             return messages
         
@@ -139,16 +245,16 @@ class AutoLLM:
         
         return "\n\n".join(formatted_parts) + "\n\nAssistant:"
     
-    def generate(
+    def _generate_text(
         self,
-        messages: Union[List[Dict[str, str]], str],
+        messages: List[Dict[str, str]],
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         top_p: float = 0.9,
         do_sample: bool = True,
         **kwargs
-    ) -> List[Dict[str, Any]]:
-        """Generate text from messages"""
+    ) -> str:
+        """Internal method to generate text"""
         
         formatted_input = self._format_messages(messages)
         
@@ -160,7 +266,7 @@ class AutoLLM:
             "do_sample": do_sample,
             "pad_token_id": self.pipe.tokenizer.pad_token_id,
             "eos_token_id": self.pipe.tokenizer.eos_token_id,
-            "return_full_text": False,  # Only return generated text, not input
+            "return_full_text": False,
         }
         
         excluded_params = {
@@ -172,41 +278,32 @@ class AutoLLM:
             if k not in excluded_params:
                 gen_kwargs[k] = v
         
-        # Use automatic mixed precision if GPU is available
+        # Generate with automatic mixed precision if GPU available
         if self.num_gpus > 0 and torch.cuda.is_available():
             try:
                 with torch.amp.autocast('cuda', enabled=True):
                     outputs = self.pipe(formatted_input, **gen_kwargs)
             except Exception as e:
-                # If AMP fails, try without it
                 print(f"AMP failed, using standard precision: {e}")
                 outputs = self.pipe(formatted_input, **gen_kwargs)
         else:
             outputs = self.pipe(formatted_input, **gen_kwargs)
         
-        return outputs
+        # Extract text from outputs
+        return self._extract_text(outputs)
     
-    def __call__(self, messages: Union[List[Dict[str, str]], str], **kwargs):
-        """Make the class callable"""
-        return self.generate(messages, **kwargs)
-    
-    def query(self, messages: Union[List[Dict[str, str]], str], **kwargs) -> str:
-        """Simple query that returns just the text"""
-        outputs = self.generate(messages, **kwargs)
-        
-        # Handle different output formats
+    def _extract_text(self, outputs) -> str:
+        """Extract text from pipeline outputs"""
         if isinstance(outputs, list) and len(outputs) > 0:
             if isinstance(outputs[0], dict):
                 if "generated_text" in outputs[0]:
                     gen_text = outputs[0]["generated_text"]
                     
-                    # If it's a chat-formatted response
                     if isinstance(gen_text, list) and len(gen_text) > 0:
                         if isinstance(gen_text[-1], dict) and "content" in gen_text[-1]:
                             return gen_text[-1]["content"]
                         return str(gen_text[-1])
                     
-                    # If it's plain text response
                     if isinstance(gen_text, str):
                         return gen_text.strip()
                     
@@ -227,16 +324,15 @@ class AutoLLM:
 
 
 # Create default instance for easy import
-# Can be configured via environment variables
 MODEL_ID = os.environ.get("LLM_MODEL_ID", "openai/gpt-oss-20b")
 USE_8BIT = os.environ.get("USE_8BIT", "false").lower() == "true"
 USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
 
-print("Initializing default LLM instance...")
+print("Initializing default local LLM instance...")
 
 # Try to load with specified settings
 try:
-    llm = AutoLLM(
+    local_llm = AutoLLM(
         model_id=MODEL_ID,
         dtype="auto",
         load_in_8bit=USE_8BIT,
@@ -245,44 +341,29 @@ try:
 except Exception as e:
     print(f"Failed to load {MODEL_ID}: {e}")
     print("Falling back to GPT-2...")
-    # Fallback to a smaller model that works on CPU
-    llm = AutoLLM(
+    local_llm = AutoLLM(
         model_id="gpt2",
         dtype="float32",
         load_in_8bit=False,
         load_in_4bit=False
     )
 
-# Convenience function for direct usage
-def query(messages: Union[List[Dict[str, str]], str], **kwargs) -> str:
-    """Quick query function that returns generated text"""
-    return llm.query(messages, **kwargs)
-# For export / use in other modules 
-llm = AutoLLM(
-        model_id=MODEL_ID,
-        dtype="auto",
-        load_in_8bit=USE_8BIT,
-        load_in_4bit=USE_4BIT
-    )
 
 # Example usage
 if __name__ == "__main__":
-    # Test the pipeline
+    from langchain_core.messages import HumanMessage, SystemMessage
+    
+    # Test the LangChain interface
     messages = [
-        {"role": "user", "content": "Explain quantum mechanics in one sentence."},
+        SystemMessage(content="You are a helpful assistant."),
+        HumanMessage(content="Explain quantum mechanics in one sentence.")
     ]
     
     try:
-        # Method 1: Using the singleton
-        response = llm.query(messages, max_new_tokens=100)
+        response = local_llm.invoke(messages)
         print("\nGenerated text:")
-        print(response)
-        
-        # Method 2: Get full output
-        full_output = llm(messages, max_new_tokens=100)
-        print("\nFull output structure available if needed")
+        print(response.content)
     except Exception as e:
         print(f"Error during generation: {e}")
         import traceback
         traceback.print_exc()
-        print("The model may require specific hardware or configuration.")
