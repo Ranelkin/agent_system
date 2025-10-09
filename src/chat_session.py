@@ -18,15 +18,18 @@ def chat_session(local=False):
     try:
         tools = manager.get_tools()
         
-        system_prompt = """You are an AI assistant that can search the web or document codebases.
-        
-When asked to document a codebase:
-1. Extract the EXACT directory path from the user's message
-2. Call the document_codebase tool with that exact path as the argument
-3. Return the tool's output
-4. Do NOT make multiple calls or suggest alternative paths
+        system_prompt = """You are an AI assistant with access to tools. You MUST use tools when appropriate.
 
-For other queries, use the Web Search tool if applicable."""
+When the user asks to "comment" or "document" a codebase:
+- Extract the exact directory path from their message
+- Respond with ONLY this JSON (no other text before or after):
+```json
+{"tool": "comment_codebase", "arguments": {"path": "/exact/path/here"}}
+When the user asks to search:
+
+Use the search tool with their query
+
+IMPORTANT: When using a tool, your ENTIRE response must be the JSON block. Do not add explanations."""
         
         # Select LLM based on local flag
         selected_llm = local_llm if local else remote_llm

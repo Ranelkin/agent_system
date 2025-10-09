@@ -2,9 +2,11 @@ import torch
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 from typing import List, Dict, Optional, Any, Union
 import os
+import json
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.outputs import ChatResult, ChatGeneration
+from langchain_core.tools import BaseTool
 
 class AutoLLM(BaseChatModel):
     """LangChain-compatible LLM that automatically uses all available GPUs/CPUs"""
@@ -17,6 +19,7 @@ class AutoLLM(BaseChatModel):
     device_map: str = "auto"
     num_gpus: int = 0
     supports_chat: bool = False
+    _bound_tools: List[Any] = []
     
     def __init__(
         self,
@@ -42,6 +45,7 @@ class AutoLLM(BaseChatModel):
         self.dtype = dtype
         self.load_in_8bit = load_in_8bit
         self.load_in_4bit = load_in_4bit
+        self._bound_tools = []
         
         # Skip loading if this is a bound copy
         if _skip_load:
@@ -135,6 +139,51 @@ class AutoLLM(BaseChatModel):
         """Return type of LLM."""
         return "local_huggingface"
     
+    def _format_tools_for_prompt(self) -> str:
+        """Format bound tools as a prompt section"""
+        if not self._bound_tools:
+            return ""
+        
+        tool_descriptions = ["\n=== AVAILABLE TOOLS ===\n"]
+        
+        for tool in self._bound_tools:
+            if hasattr(tool, 'name') and hasattr(tool, 'description'):
+                name = tool.name
+                description = tool.description
+                
+                if hasattr(tool, 'args_schema') and tool.args_schema:
+                    try:
+                        schema = tool.args_schema.schema()
+                        properties = schema.get('properties', {})
+                        required = schema.get('required', [])
+                        args_list = [f"{k} ({v.get('type', 'any')}){' [required]' if k in required else ''}" 
+                                    for k, v in properties.items()]
+                        args_desc = ", ".join(args_list)
+                    except:
+                        args_desc = "See documentation"
+                else:
+                    args_desc = "No arguments"
+                
+                tool_descriptions.append(f"\nTool: {name}\n")
+                tool_descriptions.append(f"Description: {description}\n")
+                tool_descriptions.append(f"Arguments: {args_desc}\n")
+        
+        tool_descriptions.append(
+            "\n=== INSTRUCTIONS ===\n"
+            "To use a tool, respond with ONLY this JSON format (no other text):\n"
+            "```json\n"
+            "{\n"
+            '  "tool": "tool_name",\n'
+            '  "arguments": {"arg1": "value1"}\n'
+            "}\n"
+            "```\n"
+            "\nFor the comment_codebase tool, extract the exact path from the user's message.\n"
+            "Example: If user says 'comment /home/user/code', use:\n"
+            '```json\n{"tool": "comment_codebase", "arguments": {"path": "/home/user/code"}}```\n'
+        )
+        
+        return "".join(tool_descriptions)
+    
     def bind_tools(
         self,
         tools: List[Any],
@@ -143,8 +192,7 @@ class AutoLLM(BaseChatModel):
         """Bind tools to the model - required for create_react_agent.
         
         For local models without native tool support, we store the tools
-        but don't actually bind them to the model. The agent framework
-        will handle tool calling through prompting.
+        and include them in the prompt so the model knows what's available.
         """
         # Create a new instance without loading the model again
         bound = self.__class__(
@@ -160,8 +208,13 @@ class AutoLLM(BaseChatModel):
         bound.num_gpus = self.num_gpus
         bound.supports_chat = self.supports_chat
         
-        # Store tools for reference
+        # Store tools - THIS IS KEY!
         bound._bound_tools = tools
+        
+        print(f"Bound {len(tools)} tools to local LLM:")
+        for tool in tools:
+            tool_name = getattr(tool, 'name', getattr(tool, '__name__', 'Unknown'))
+            print(f"  - {tool_name}")
         
         return bound
     
@@ -175,19 +228,31 @@ class AutoLLM(BaseChatModel):
         return self
     
     def _generate(
-        self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[Any] = None,
-        **kwargs: Any,
+    self,
+    messages: List[BaseMessage],
+    stop: Optional[List[str]] = None,
+    run_manager: Optional[Any] = None,
+    **kwargs: Any,
     ) -> ChatResult:
-        """Generate chat completion from messages - required by BaseChatModel"""
+        """Generate chat completion with tool calling support"""
         
-        # Convert LangChain messages to the format our pipeline expects
         formatted_messages = self._convert_messages(messages)
         
+        # Inject tool information
+        if self._bound_tools and formatted_messages:
+            tools_prompt = self._format_tools_for_prompt()
+            system_msg_idx = next(
+                (i for i, msg in enumerate(formatted_messages) if msg.get('role') == 'system'),
+                None
+            )
+            
+            if system_msg_idx is not None:
+                formatted_messages[system_msg_idx]['content'] += "\n" + tools_prompt
+            else:
+                formatted_messages.insert(0, {'role': 'system', 'content': tools_prompt})
+        
         # Generate response
-        max_new_tokens = kwargs.pop("max_new_tokens", 256)
+        max_new_tokens = kwargs.pop("max_new_tokens", 512)
         temperature = kwargs.pop("temperature", 0.7)
         top_p = kwargs.pop("top_p", 0.9)
         do_sample = kwargs.pop("do_sample", True)
@@ -201,11 +266,77 @@ class AutoLLM(BaseChatModel):
             **kwargs
         )
         
-        # Return in LangChain format
-        message = AIMessage(content=response_text)
+        # Try to parse tool calls from response
+        tool_calls = self._parse_tool_calls(response_text)
+        print(f"[DEBUG] Parsed tool calls: {tool_calls}")  # Add this
+
+        if tool_calls:
+            message = AIMessage(
+                content="",  # Empty content when tool calling
+                additional_kwargs={"tool_calls": tool_calls}
+            )
+        else:
+            message = AIMessage(content=response_text)    
+                    
+                    
+        if tool_calls:
+            # Create AIMessage with tool calls
+            message = AIMessage(
+                content=response_text,
+                additional_kwargs={"tool_calls": tool_calls}
+            )
+        else:
+            message = AIMessage(content=response_text)
+        
         generation = ChatGeneration(message=message)
         return ChatResult(generations=[generation])
-    
+
+    def _parse_tool_calls(self, text: str) -> List[Dict]:
+        """Parse tool calls from model output"""
+        import re
+        
+        tool_calls = []
+        
+        # Pattern 1: JSON in code blocks
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        matches = re.findall(json_pattern, text, re.DOTALL)
+        
+        # Pattern 2: Plain JSON with "tool" and "arguments" keys
+        if not matches:
+            # Look for {...} containing both "tool" and "arguments"
+            json_pattern = r'\{[^{}]*"tool"[^{}]*"arguments"[^{}]*\}'
+            matches = re.findall(json_pattern, text)
+            
+            # If nested braces, try extracting the full object
+            if not matches:
+                # More aggressive: find any {...} that might be a tool call
+                potential_jsons = re.findall(r'\{(?:[^{}]|\{[^{}]*\})*\}', text)
+                for pj in potential_jsons:
+                    try:
+                        data = json.loads(pj)
+                        if "tool" in data and "arguments" in data:
+                            matches.append(pj)
+                    except:
+                        continue
+        
+        for match in matches:
+            try:
+                tool_data = json.loads(match)
+                if "tool" in tool_data and "arguments" in tool_data:
+                    tool_calls.append({
+                        "id": f"call_{len(tool_calls)}",
+                        "type": "function",
+                        "function": {
+                            "name": tool_data["tool"],
+                            "arguments": json.dumps(tool_data["arguments"])
+                        }
+                    })
+            except json.JSONDecodeError as e:
+                print(f"[DEBUG] Failed to parse JSON: {match[:100]}... Error: {e}")
+                continue
+        
+        return tool_calls
+
     def _convert_messages(self, messages: List[BaseMessage]) -> List[Dict[str, str]]:
         """Convert LangChain messages to dict format"""
         converted = []
