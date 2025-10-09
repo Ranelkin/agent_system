@@ -1,6 +1,6 @@
 import torch
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 import os
 
 class AutoLLM:
@@ -9,7 +9,7 @@ class AutoLLM:
     def __init__(
         self,
         model_id: str = "openai/gpt-oss-20b",
-        dtype: Optional[str] = None,  # Changed from torch_dtype
+        dtype: Optional[str] = None,
         load_in_8bit: bool = False,
         load_in_4bit: bool = False
     ):
@@ -41,28 +41,29 @@ class AutoLLM:
         if dtype is None or dtype == "auto":
             if self.num_gpus > 0:
                 # Use float16 on GPU for efficiency
-                dtype = torch.float16
+                torch_dtype = torch.float16
             else:
                 # Use float32 on CPU (more stable)
-                dtype = torch.float32
+                torch_dtype = torch.float32
         elif isinstance(dtype, str):
             dtype_map = {
                 "float16": torch.float16,
                 "bfloat16": torch.bfloat16,
                 "float32": torch.float32,
             }
-            dtype = dtype_map.get(dtype, torch.float32)
+            torch_dtype = dtype_map.get(dtype, torch.float32)
+        else:
+            torch_dtype = dtype
         
         # Model loading configuration
         model_kwargs = {
             "device_map": self.device_map,
-            "torch_dtype": dtype,  # Still use torch_dtype for transformers
-            "trust_remote_code": True,
-            "low_cpu_mem_usage": True,
+            "torch_dtype": torch_dtype
+            
         }
         
-        # Add quantization if requested (mutually exclusive)
-        if self.num_gpus > 0:  # Quantization typically requires GPU
+        
+        if self.num_gpus > 0:  
             if load_in_4bit:
                 model_kwargs["load_in_4bit"] = True
                 model_kwargs["bnb_4bit_compute_dtype"] = torch.float16
@@ -74,21 +75,13 @@ class AutoLLM:
             if load_in_4bit or load_in_8bit:
                 print("Warning: Quantization requested but no GPU available. Running in full precision.")
         
-        # Try to use Flash Attention 2 if available (only on GPU)
-        if self.num_gpus > 0:
-            try:
-                model_kwargs["attn_implementation"] = "flash_attention_2"
-                print("Flash Attention 2 enabled")
-            except:
-                pass
-        
         # Initialize the pipeline
         print(f"Loading model: {model_id}")
         try:
             self.pipe = pipeline(
                 "text-generation",
                 model=model_id,
-                **model_kwargs
+                model_kwargs=model_kwargs
             )
         except Exception as e:
             print(f"Error loading model with auto settings: {e}")
@@ -97,13 +90,13 @@ class AutoLLM:
             # Fallback: Try simpler loading
             fallback_kwargs = {
                 "device_map": self.device_map,
-                "torch_dtype": dtype,
+                "torch_dtype": torch_dtype,
                 "trust_remote_code": True,
             }
             self.pipe = pipeline(
                 "text-generation",
                 model=model_id,
-                **fallback_kwargs
+                model_kwargs=fallback_kwargs
             )
         
         # Configure tokenizer
@@ -111,12 +104,44 @@ class AutoLLM:
             self.pipe.tokenizer.pad_token = self.pipe.tokenizer.eos_token
             self.pipe.tokenizer.pad_token_id = self.pipe.tokenizer.eos_token_id
         
+        # Check if model supports chat templates
+        self.supports_chat = hasattr(self.pipe.tokenizer, 'chat_template') and self.pipe.tokenizer.chat_template is not None
+        if not self.supports_chat:
+            print("Note: This model doesn't have a chat template. Using plain text mode.")
+        
         print("Model loaded successfully!")
         self._print_memory_usage()
     
+    def _format_messages(self, messages: Union[List[Dict[str, str]], str]) -> str:
+        """Convert messages to appropriate format for the model"""
+        # If it's already a string, return it
+        if isinstance(messages, str):
+            return messages
+        
+        # If model supports chat templates, let the pipeline handle it
+        if self.supports_chat:
+            return messages
+        
+        # Otherwise, convert to plain text format
+        formatted_parts = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            if role == "system":
+                formatted_parts.append(f"System: {content}")
+            elif role == "user":
+                formatted_parts.append(f"User: {content}")
+            elif role == "assistant":
+                formatted_parts.append(f"Assistant: {content}")
+            else:
+                formatted_parts.append(content)
+        
+        return "\n\n".join(formatted_parts) + "\n\nAssistant:"
+    
     def generate(
         self,
-        messages: List[Dict[str, str]],
+        messages: Union[List[Dict[str, str]], str],
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         top_p: float = 0.9,
@@ -125,7 +150,9 @@ class AutoLLM:
     ) -> List[Dict[str, Any]]:
         """Generate text from messages"""
         
-        # Prepare generation parameters (excluding model loading params)
+        formatted_input = self._format_messages(messages)
+        
+        # Prepare gen params
         gen_kwargs = {
             "max_new_tokens": max_new_tokens,
             "temperature": temperature,
@@ -133,13 +160,14 @@ class AutoLLM:
             "do_sample": do_sample,
             "pad_token_id": self.pipe.tokenizer.pad_token_id,
             "eos_token_id": self.pipe.tokenizer.eos_token_id,
+            "return_full_text": False,  # Only return generated text, not input
         }
         
-        # Add any additional generation parameters
-        # Filter out any model loading parameters that might have been passed
-        excluded_params = {'device_map', 'torch_dtype', 'dtype', 'low_cpu_mem_usage', 
-                          'trust_remote_code', 'attn_implementation', 'load_in_8bit', 
-                          'load_in_4bit', 'bnb_4bit_compute_dtype'}
+        excluded_params = {
+            'device_map', 'torch_dtype', 'dtype', 'low_cpu_mem_usage', 
+            'attn_implementation', 'load_in_8bit', 
+            'load_in_4bit', 'bnb_4bit_compute_dtype', 'model_kwargs'
+        }
         for k, v in kwargs.items():
             if k not in excluded_params:
                 gen_kwargs[k] = v
@@ -147,33 +175,43 @@ class AutoLLM:
         # Use automatic mixed precision if GPU is available
         if self.num_gpus > 0 and torch.cuda.is_available():
             try:
-                with torch.cuda.amp.autocast(enabled=True):
-                    outputs = self.pipe(messages, **gen_kwargs)
+                with torch.amp.autocast('cuda', enabled=True):
+                    outputs = self.pipe(formatted_input, **gen_kwargs)
             except Exception as e:
-                print(f"AMP failed, falling back to normal generation: {e}")
-                outputs = self.pipe(messages, **gen_kwargs)
+                # If AMP fails, try without it
+                print(f"AMP failed, using standard precision: {e}")
+                outputs = self.pipe(formatted_input, **gen_kwargs)
         else:
-            outputs = self.pipe(messages, **gen_kwargs)
+            outputs = self.pipe(formatted_input, **gen_kwargs)
         
         return outputs
     
-    def __call__(self, messages: List[Dict[str, str]], **kwargs):
+    def __call__(self, messages: Union[List[Dict[str, str]], str], **kwargs):
         """Make the class callable"""
         return self.generate(messages, **kwargs)
     
-    def query(self, messages: List[Dict[str, str]], **kwargs) -> str:
+    def query(self, messages: Union[List[Dict[str, str]], str], **kwargs) -> str:
         """Simple query that returns just the text"""
         outputs = self.generate(messages, **kwargs)
+        
         # Handle different output formats
         if isinstance(outputs, list) and len(outputs) > 0:
             if isinstance(outputs[0], dict):
                 if "generated_text" in outputs[0]:
                     gen_text = outputs[0]["generated_text"]
+                    
+                    # If it's a chat-formatted response
                     if isinstance(gen_text, list) and len(gen_text) > 0:
                         if isinstance(gen_text[-1], dict) and "content" in gen_text[-1]:
                             return gen_text[-1]["content"]
                         return str(gen_text[-1])
+                    
+                    # If it's plain text response
+                    if isinstance(gen_text, str):
+                        return gen_text.strip()
+                    
                     return str(gen_text)
+        
         return str(outputs)
     
     def _print_memory_usage(self):
@@ -190,7 +228,7 @@ class AutoLLM:
 
 # Create default instance for easy import
 # Can be configured via environment variables
-MODEL_ID = os.environ.get("LLM_MODEL_ID", "microsoft/phi-2")
+MODEL_ID = os.environ.get("LLM_MODEL_ID", "openai/gpt-oss-20b")
 USE_8BIT = os.environ.get("USE_8BIT", "false").lower() == "true"
 USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
 
@@ -216,10 +254,16 @@ except Exception as e:
     )
 
 # Convenience function for direct usage
-def query(messages: List[Dict[str, str]], **kwargs) -> str:
+def query(messages: Union[List[Dict[str, str]], str], **kwargs) -> str:
     """Quick query function that returns generated text"""
     return llm.query(messages, **kwargs)
-
+# For export / use in other modules 
+llm = AutoLLM(
+        model_id=MODEL_ID,
+        dtype="auto",
+        load_in_8bit=USE_8BIT,
+        load_in_4bit=USE_4BIT
+    )
 
 # Example usage
 if __name__ == "__main__":
@@ -239,4 +283,6 @@ if __name__ == "__main__":
         print("\nFull output structure available if needed")
     except Exception as e:
         print(f"Error during generation: {e}")
+        import traceback
+        traceback.print_exc()
         print("The model may require specific hardware or configuration.")
