@@ -3,7 +3,6 @@ from typing import Optional
 from .mcp_client import MCPTool
 from ....model.agent import llm
 from ....shared.log_config import setup_logging
-from ....core.services.grouped_tools import get_available_tools
 import inspect
 
 logger = setup_logging("session_manager")
@@ -45,8 +44,7 @@ class MCPSessionManager:
         sig = inspect.signature(tool_func)
         params = list(sig.parameters.keys())
         
-        # For single-parameter tools, LangChain may pass a string directly
-        # For multi-parameter tools, it will use kwargs
+       
         if len(params) == 1:
             def wrapper(arg=None, **kwargs):
                 """Dynamically generated wrapper for single-parameter tool."""
@@ -87,6 +85,8 @@ class MCPSessionManager:
         """
         if not self.mcp_tool:
             raise RuntimeError("MCP session not started. Call start() first.")
+        
+        from ....core.services.grouped_tools import get_available_tools
         
         # Get all available tools from the centralized registry
         available_tools = get_available_tools()
