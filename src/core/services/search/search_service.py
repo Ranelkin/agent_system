@@ -1,4 +1,3 @@
-# src/infrastructure/llm/agents/search_agent.py
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing import Annotated
@@ -40,6 +39,7 @@ def search_agent_node(state: SearchState):
         "messages": [{"role": "assistant", "content": response_content}],
         "search_results": results
     }
+
 
 def create_search_agent_graph() -> StateGraph:
     """Factory function to create the search agent subgraph"""

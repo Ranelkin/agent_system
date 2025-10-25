@@ -1,10 +1,17 @@
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from typing import Annotated
+from typing_extensions import TypedDict
 from ....shared.log_config import setup_logging
 from ....util.FileBase import FileBase
 from ....infrastructure.llm.graph import stream_graph_updates
 
 logger = setup_logging("comment_code_service")
 
-
+class CommentState(TypedDict):
+    messages: Annotated[list, add_messages]
+    search_results: str | None
+    
 def comment_codebase(dir: str) -> dict: 
     """Traverese the directory and comments out / document the codebase
 
@@ -106,3 +113,13 @@ def comment_codebase(dir: str) -> dict:
       
       
       
+def create_comment_agent_graph() -> StateGraph:
+    """Factory function to create the comment agent subgraph"""
+    logger.info("Creating comment agent graph")
+    
+    builder = StateGraph(CommentState)
+    builder.add_node("comment_agent", comment_codebase)
+    builder.add_edge(START, "comment_agent")
+    builder.add_edge("comment_agent", END)
+    
+    return builder.compile()

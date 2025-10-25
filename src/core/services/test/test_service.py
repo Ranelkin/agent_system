@@ -1,9 +1,17 @@
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from typing import Annotated
+from typing_extensions import TypedDict
 from ....shared.log_config import setup_logging
 from ....util.FileBase import FileBase
 from ....infrastructure.llm.graph import stream_graph_updates
 
 logger = setup_logging("test_service")
 
+class TestState(StateGraph): 
+    messages: Annotated[list, add_messages]
+    search_results: str | None
+    
 def create_unit_tests(dir: str) -> dict: 
     """_summary_"""
     logger.info(f"Start creating unit tests for codebase: {dir}")
@@ -88,3 +96,14 @@ def create_unit_tests(dir: str) -> dict:
           "count": len(processed_files),
           "message": str(e)
         }
+
+def create_test_agent_graph()-> StateGraph:
+    """Factory function to create the unit test agent subgraph"""
+    logger.info("Creating unit test agent graph")
+    
+    builder = StateGraph(TestState)
+    builder.add_node("unit_test_agent", create_unit_tests)
+    builder.add_edge(START, "unit_test_agent")
+    builder.add_edge("unit_test_agent", END)
+    
+    return builder.compile()
