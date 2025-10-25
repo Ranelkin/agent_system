@@ -461,29 +461,30 @@ USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
 
 print("Initializing default local LLM instance...")
 
-# Try to load with specified settings
-try:
-    local_llm = AutoLLM(
-        model_id=MODEL_ID,
-        dtype="auto",
-        load_in_8bit=USE_8BIT,
-        load_in_4bit=USE_4BIT
-    )
-except Exception as e:
-    print(f"Failed to load {MODEL_ID}: {e}")
-    print("Falling back to GPT-2...")
-    local_llm = AutoLLM(
-        model_id="gpt2",
-        dtype="float32",
-        load_in_8bit=False,
-        load_in_4bit=False
-    )
+
 
 
 # Example usage
 if __name__ == "__main__":
     from langchain_core.messages import HumanMessage, SystemMessage
     
+    try:
+        local_llm = AutoLLM(
+            model_id=MODEL_ID,
+            dtype="auto",
+            load_in_8bit=USE_8BIT,
+            load_in_4bit=USE_4BIT
+        )
+    except Exception as e:
+        print(f"Failed to load {MODEL_ID}: {e}")
+        print("Falling back to GPT-2...")
+        local_llm = AutoLLM(
+            model_id="gpt2",
+            dtype="float32",
+            load_in_8bit=False,
+            load_in_4bit=False
+        )
+
     # Test the LangChain interface
     messages = [
         SystemMessage(content="You are a helpful assistant."),

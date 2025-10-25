@@ -1,8 +1,9 @@
+import os 
+from dotenv import load_dotenv
 from langgraph.prebuilt import create_react_agent
 from .infrastructure.mcp.client.session_manager import MCPSessionManager
 from .shared.log_config import setup_logging
-from .model.agent import llm as remote_llm
-from .model.local_llm import local_llm
+from .model import remote_llm, AutoLLM
 
 logger = setup_logging("chat_session")
 
@@ -12,6 +13,7 @@ def chat_session(local=False):
     Args:
         local: If True, use local_llm instead of remote OpenAI LLM
     """
+    load_dotenv()
     manager = MCPSessionManager()
     manager.start()
     
@@ -31,8 +33,17 @@ Use the search tool with their query
 
 IMPORTANT: When using a tool, your ENTIRE response must be the JSON block. Do not add explanations."""
         
+        MODEL_ID = os.environ.get("LLM_MODEL_ID", "openai/gpt-oss-20b")
+        USE_8BIT = os.environ.get("USE_8BIT", "false").lower() == "true"
+        USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
+
         # Select LLM based on local flag
-        selected_llm = local_llm if local else remote_llm
+        selected_llm = AutoLLM(
+        model_id=MODEL_ID,
+        dtype="auto",
+        load_in_8bit=USE_8BIT,
+        load_in_4bit=USE_4BIT
+        ) if local else remote_llm
         llm_type = "Local" if local else "Remote (OpenAI)"
         logger.info(f"Using {llm_type} LLM")
         
