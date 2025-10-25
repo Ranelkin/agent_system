@@ -2,7 +2,7 @@ from typing import List, Callable
 from langgraph.graph import StateGraph
 
 from .documentation.comment_code_service import comment_codebase, create_comment_agent_graph
-from .search.search_service import search, create_search_agent_graph
+from .search.search_service import perform_web_search, create_search_agent_graph
 from .test.test_service import create_unit_tests, create_test_agent_graph
 
 
@@ -15,7 +15,7 @@ AGENT_GRAPHS: List[Callable[[], StateGraph]] = [
 
 TOOLS: List[Callable] = [
     comment_codebase,
-    search,
+    perform_web_search,
     create_unit_tests
 ]
 
