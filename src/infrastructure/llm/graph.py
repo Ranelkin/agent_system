@@ -4,7 +4,7 @@ from typing import Annotated
 from typing_extensions import TypedDict
 from ...model.agent import llm
 from ...shared.log_config import setup_logging
-from ...core.services.grouped_tools import get_available_graphs, get_available_tools, get_graph_names
+from ...core.services.grouped_tools import get_available_graphs, get_graph_names
 
 logger = setup_logging("main_graph")
 

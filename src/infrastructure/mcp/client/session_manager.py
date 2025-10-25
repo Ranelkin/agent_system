@@ -1,5 +1,4 @@
 from langchain.tools import Tool
-from langgraph.prebuilt import create_react_agent
 from typing import Optional
 from .mcp_client import MCPTool
 from ....model.agent import llm
@@ -114,65 +113,3 @@ class MCPSessionManager:
         
         return langchain_tools
 
-
-def chat_session():
-    """Main chat session - fully synchronous
-    """
-    
-    manager = MCPSessionManager()
-    manager.start()
-    
-    try:
-        tools = manager.get_tools()
-        
-        system_prompt = """You are an AI assistant that can search the web or document codebases.
-
-        When asked to document a codebase:
-        1. Extract the EXACT directory path from the user's message
-        2. Call the comment_codebase tool with that exact path as the argument
-        3. Return the tool's output
-        4. Do NOT make multiple calls or suggest alternative paths
-
-        For other queries, use the appropriate tools available."""
-        
-        # Create the agent
-        agent = create_react_agent(
-            llm, 
-            tools,
-            prompt=system_prompt
-        )
-        
-        # Chat loop
-        logger.info("\n🤖 AI Assistant ready! (type 'exit' to quit)\n")
-        while True:
-            query = input("You: ")
-            if query.lower() in ['exit', 'quit', 'q']:
-                break
-            
-            logger.info("\nAssistant: ")
-            try:
-                response = agent.invoke(
-                    {"messages": [("system", system_prompt), ("human", query)]},
-                    config={"recursion_limit": 50}
-                )
-                
-                # Extract and log the response message content
-                if "messages" in response and response["messages"]:
-                    final_message = response["messages"][-1]
-                    if hasattr(final_message, 'content'):
-                        logger.info(final_message.content)
-                    else:
-                        logger.info(final_message)
-                else:
-                    logger.info(response)
-                    
-            except Exception as e:
-                logger.error(f"Error in chat: {e}")
-                logger.info(f"Error: {e}")
-            
-            logger.info("\n\n")  
-                
-    finally:
-        logger.info("Finished processing request")
-        manager.stop()
-        logger.info("\n👋 Goodbye!")

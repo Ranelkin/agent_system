@@ -1,17 +1,23 @@
 from dotenv import load_dotenv
 from .infrastructure.llm.graph import main_graph
+from .infrastructure.mcp.client import get_mcp_manager, shutdown_mcp
 from .shared.log_config import setup_logging
-from .model import remote_llm, AutoLLM
 
 logger = setup_logging("chat_session")
 
 def chat_session(local=False):
-    """Main chat session using the orchestrated graph system"""
+    """Main chat session with MCP + LangGraph integration"""
     load_dotenv()
     
+    manager = get_mcp_manager()
+    
     try:
-        # Chat loop
-        logger.info("\n🤖 AI Assistant ready with Graph-based agents! (type 'exit' to quit)\n")
+        logger.info("\n🤖 AI Assistant ready!")
+        logger.info("Available commands:")
+        logger.info("  - 'search for X' - Web search")
+        logger.info("  - 'create tests for /path' - Generate unit tests")
+        logger.info("  - 'document /path' - Add documentation")
+        logger.info("  - 'exit' to quit\n")
         
         while True:
             query = input("You: ")
@@ -22,29 +28,29 @@ def chat_session(local=False):
             logger.info("\nAssistant: ")
             
             try:
-                # Invoke the main graph
                 response = main_graph.invoke(
                     {"messages": [{"role": "user", "content": query}]},
                     config={"recursion_limit": 50}
                 )
                 
-                # Extract and log the response
+                # Extract response
                 if "messages" in response and response["messages"]:
                     final_message = response["messages"][-1]
                     if isinstance(final_message, dict):
-                        logger.info(final_message.get("content", final_message))
+                        print(final_message.get("content", final_message))
                     elif hasattr(final_message, 'content'):
-                        logger.info(final_message.content)
+                        print(final_message.content)
                     else:
-                        logger.info(final_message)
+                        print(final_message)
                 else:
-                    logger.info(response)
+                    print(response)
                     
             except Exception as e:
-                logger.error(f"Error in chat: {e}")
-                logger.info(f"Error: {e}")
+                logger.error(f"Error in chat: {e}", exc_info=True)
+                print(f"Error: {e}")
             
-            logger.info("\n\n")
+            print("\n")
             
     finally:
+        shutdown_mcp()
         logger.info("\n👋 Goodbye!")
