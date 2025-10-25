@@ -4,6 +4,7 @@ from ....infrastructure.llm.graph import stream_graph_updates
 
 logger = setup_logging("comment_code_service")
 
+
 def comment_codebase(dir: str) -> dict: 
     """Traverese the directory and comments out / document the codebase
 
@@ -102,5 +103,6 @@ def comment_codebase(dir: str) -> dict:
           "count": len(processed_files),
           "message": str(e)
          }
+      
       
       
