@@ -12,11 +12,11 @@ class SearchState(TypedDict):
     messages: Annotated[list, add_messages]
     search_results: str | None
 
-# Simple function for MCP - no state parameter
 def perform_web_search(search_term: str) -> str:
-    """Perform a web search and return results"""
+    """Perform a web search and return results as a string"""
     logger.info(f"Performing web search for: {search_term}")
-    return search_web(search_term)
+    results = search_web(search_term)
+    return str(results)
 
 # Graph node function - uses state
 def search_node(state: SearchState) -> SearchState:
