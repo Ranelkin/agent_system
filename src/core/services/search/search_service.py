@@ -4,7 +4,7 @@ from typing import Annotated
 from typing_extensions import TypedDict
 from ....shared.log_config import setup_logging
 from ....infrastructure.mcp.client import get_mcp_manager
-from .web_search import search_web  # Import the actual search function
+from .web_search import search_web
 
 logger = setup_logging("search_agent")
 
