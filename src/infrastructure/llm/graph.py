@@ -1,3 +1,4 @@
+# CA: This file defines the main orchestrator graph. It wires a router node to dispatch to available agent subgraphs using an LLM for routing decisions. Comments added to improve readability and maintain maintainability without changing functional behavior.
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing import Annotated
@@ -17,6 +18,7 @@ def router_node(state: MainState) -> MainState:
     Routes to appropriate agent based on user message
     Uses LLM to determine which agent to use
     """
+    # CA: Router node determines the target agent by consulting an LLM with the latest user message.
     logger.info("Router node invoked")
     
     messages = state["messages"]
@@ -43,12 +45,14 @@ Respond with ONLY the agent name, nothing else."""
 
 def route_to_agent(state: MainState) -> str:
     """Conditional edge function to route to the correct agent"""
+    # CA: Decide the next hop in the graph from the router output. Falls back to a default agent if absent.
     next_agent = state.get("next_agent", "search_agent")
     logger.info(f"Routing decision: {next_agent}")
     return next_agent
 
 def create_main_graph() -> StateGraph:
     """Assembles all agent subgraphs into main orchestrator graph"""
+    # CA: Build the main graph by integrating all available agent subgraphs dynamically.
     logger.info("Creating main orchestrator graph")
     
     builder = StateGraph(MainState)
@@ -64,6 +68,7 @@ def create_main_graph() -> StateGraph:
         graph = factory()
         builder.add_node(name, graph)
         logger.info(f"Registered agent: {name}")
+        # CA: Each agent graph is registered under its corresponding name for dynamic routing.
     
     # Add edges
     builder.add_edge(START, "router")
