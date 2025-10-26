@@ -11,12 +11,12 @@ from IPython.display import Image, display
 
 # Import the graph interface to retrieve Mermaid graph data for rendering.
 # _CA
-from ..infrastructure.llm.graph import graph
+from ..infrastructure.llm.graph import main_graph
 
 # Attempt to render the graph as a PNG and display it inline in the notebook.
 # _CA
 try:
-    display(Image(graph.get_graph().draw_mermaid_png()))
+    display(Image(main_graph.get_graph().draw_mermaid_png()))
 # If the required optional dependencies for rendering Mermaid diagrams are not installed,
 # we gracefully skip displaying the image to avoid breaking execution.
 except Exception:
