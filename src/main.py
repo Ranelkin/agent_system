@@ -11,17 +11,17 @@ logger = setup_logging("main")
 
 def main():
     
-    LOCAL = False 
+    LOCAL = 'False'
     parser = argparse.ArgumentParser(description="Process some files with options.")
     parser.add_argument("--local", action="store_true",  help="Flag for local inference")
     logger.info("Starting chat session.")
     args = parser.parse_args()
     if args.local: 
-        LOCAL = True 
+        LOCAL = 'True'
     
-    os.environ['LOCAL'] = True 
+    os.environ['LOCAL'] = LOCAL
     
-    chat_session(LOCAL)
+    chat_session()
 
 
 if __name__ == '__main__': 

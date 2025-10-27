@@ -5,6 +5,7 @@ class AppConfig(BaseSettings):
     tavily_api_key: str
     log_level: str = "INFO"
     mcp_server_timeout: int = 30
+    local: bool = False 
     
     class Config:
         env_file = ".env"

@@ -19,6 +19,7 @@ class AutoLLM(BaseChatModel):
     device_map: str = "auto"
     num_gpus: int = 0
     supports_chat: bool = False
+    torch_dtype: Any = None
     _bound_tools: List[Any] = []
     
     def __init__(
@@ -64,32 +65,39 @@ class AutoLLM(BaseChatModel):
         else:
             print("Running on CPU")
         
-        # Determine dtype based on hardware
+        # CRITICAL: Determine dtype - use bfloat16 for gpt-oss models
         if dtype is None or dtype == "auto":
             if self.num_gpus > 0:
-                torch_dtype = torch.float16
+                torch_dtype = torch.bfloat16
+                print("Auto-selected dtype: bfloat16")
             else:
                 torch_dtype = torch.float32
+                print("Auto-selected dtype: float32 (CPU)")
         elif isinstance(dtype, str):
             dtype_map = {
                 "float16": torch.float16,
                 "bfloat16": torch.bfloat16,
                 "float32": torch.float32,
             }
-            torch_dtype = dtype_map.get(dtype, torch.float32)
+            torch_dtype = dtype_map.get(dtype, torch.bfloat16)
+            print(f"Using specified dtype: {dtype}")
         else:
             torch_dtype = dtype
+        
+        # Store for later use
+        self.torch_dtype = torch_dtype
         
         # Model loading configuration
         model_kwargs = {
             "device_map": self.device_map,
-            "torch_dtype": torch_dtype
+            "torch_dtype": torch_dtype,
+            "low_cpu_mem_usage": True,
         }
         
         if self.num_gpus > 0:  
             if load_in_4bit:
                 model_kwargs["load_in_4bit"] = True
-                model_kwargs["bnb_4bit_compute_dtype"] = torch.float16
+                model_kwargs["bnb_4bit_compute_dtype"] = torch_dtype
                 print("Using 4-bit quantization")
             elif load_in_8bit:
                 model_kwargs["load_in_8bit"] = True
@@ -106,20 +114,40 @@ class AutoLLM(BaseChatModel):
                 model=model_id,
                 model_kwargs=model_kwargs
             )
+            print("Model loaded successfully (primary method)")
         except Exception as e:
             print(f"Error loading model with auto settings: {e}")
-            print("Attempting fallback loading...")
+            print("Attempting fallback loading with trust_remote_code...")
             
             fallback_kwargs = {
                 "device_map": self.device_map,
                 "torch_dtype": torch_dtype,
                 "trust_remote_code": True,
+                "low_cpu_mem_usage": True,
             }
-            self.pipe = pipeline(
-                "text-generation",
-                model=model_id,
-                model_kwargs=fallback_kwargs
-            )
+            
+            try:
+                self.pipe = pipeline(
+                    "text-generation",
+                    model=model_id,
+                    model_kwargs=fallback_kwargs
+                )
+                print("Model loaded successfully (fallback method)")
+            except Exception as e2:
+                print(f"Fallback loading also failed: {e2}")
+                print("Attempting final fallback with minimal settings...")
+                
+                minimal_kwargs = {
+                    "device_map": "auto",
+                    "torch_dtype": torch_dtype,
+                }
+                
+                self.pipe = pipeline(
+                    "text-generation",
+                    model=model_id,
+                    model_kwargs=minimal_kwargs
+                )
+                print("Model loaded successfully (minimal fallback)")
         
         # Configure tokenizer
         if self.pipe.tokenizer.pad_token is None:
@@ -132,7 +160,22 @@ class AutoLLM(BaseChatModel):
             print("Note: This model doesn't have a chat template. Using plain text mode.")
         
         print("Model loaded successfully!")
+        
+        # CRITICAL: Ensure dtype consistency
+        self._ensure_dtype_consistency()
+        
         self._print_memory_usage()
+    
+    def _ensure_dtype_consistency(self):
+        """Ensure all model parameters are in the same dtype"""
+        if self.pipe and self.pipe.model and hasattr(self, 'torch_dtype'):
+            target_dtype = self.torch_dtype
+            print(f"Ensuring all model parameters are {target_dtype}...")
+            try:
+                self.pipe.model = self.pipe.model.to(target_dtype)
+                print("Dtype consistency enforced")
+            except Exception as e:
+                print(f"Warning: Could not enforce dtype consistency: {e}")
     
     @property
     def _llm_type(self) -> str:
@@ -189,12 +232,7 @@ class AutoLLM(BaseChatModel):
         tools: List[Any],
         **kwargs: Any,
     ) -> "AutoLLM":
-        """Bind tools to the model - required for create_react_agent.
-        
-        For local models without native tool support, we store the tools
-        and include them in the prompt so the model knows what's available.
-        """
-        # Create a new instance without loading the model again
+        """Bind tools to the model - required for create_react_agent."""
         bound = self.__class__(
             model_id=self.model_id,
             dtype=self.dtype,
@@ -207,8 +245,9 @@ class AutoLLM(BaseChatModel):
         bound.device_map = self.device_map
         bound.num_gpus = self.num_gpus
         bound.supports_chat = self.supports_chat
+        bound.torch_dtype = self.torch_dtype
         
-        # Store tools - THIS IS KEY!
+        # Store tools
         bound._bound_tools = tools
         
         print(f"Bound {len(tools)} tools to local LLM:")
@@ -219,20 +258,15 @@ class AutoLLM(BaseChatModel):
         return bound
     
     def with_structured_output(self, schema: Any, **kwargs: Any) -> "AutoLLM":
-        """Return a model that outputs structured data.
-        
-        For local models, this is a pass-through since we don't have
-        native structured output support. The agent framework will
-        handle parsing.
-        """
+        """Return a model that outputs structured data."""
         return self
     
     def _generate(
-    self,
-    messages: List[BaseMessage],
-    stop: Optional[List[str]] = None,
-    run_manager: Optional[Any] = None,
-    **kwargs: Any,
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[Any] = None,
+        **kwargs: Any,
     ) -> ChatResult:
         """Generate chat completion with tool calling support"""
         
@@ -268,21 +302,11 @@ class AutoLLM(BaseChatModel):
         
         # Try to parse tool calls from response
         tool_calls = self._parse_tool_calls(response_text)
-        print(f"[DEBUG] Parsed tool calls: {tool_calls}")  # Add this
-
+        print(f"[DEBUG] Parsed tool calls: {tool_calls}")
+        
         if tool_calls:
             message = AIMessage(
-                content="",  # Empty content when tool calling
-                additional_kwargs={"tool_calls": tool_calls}
-            )
-        else:
-            message = AIMessage(content=response_text)    
-                    
-                    
-        if tool_calls:
-            # Create AIMessage with tool calls
-            message = AIMessage(
-                content=response_text,
+                content="",
                 additional_kwargs={"tool_calls": tool_calls}
             )
         else:
@@ -303,13 +327,10 @@ class AutoLLM(BaseChatModel):
         
         # Pattern 2: Plain JSON with "tool" and "arguments" keys
         if not matches:
-            # Look for {...} containing both "tool" and "arguments"
             json_pattern = r'\{[^{}]*"tool"[^{}]*"arguments"[^{}]*\}'
             matches = re.findall(json_pattern, text)
             
-            # If nested braces, try extracting the full object
             if not matches:
-                # More aggressive: find any {...} that might be a tool call
                 potential_jsons = re.findall(r'\{(?:[^{}]|\{[^{}]*\})*\}', text)
                 for pj in potential_jsons:
                     try:
@@ -348,18 +369,15 @@ class AutoLLM(BaseChatModel):
             elif isinstance(msg, SystemMessage):
                 converted.append({"role": "system", "content": msg.content})
             else:
-                # Fallback for other message types
                 converted.append({"role": "user", "content": str(msg.content)})
         return converted
     
     def _format_messages(self, messages: List[Dict[str, str]]) -> str:
         """Convert messages to appropriate format for the model"""
         
-        # If model supports chat templates, return as-is for pipeline
         if self.supports_chat:
             return messages
         
-        # Otherwise, convert to plain text format
         formatted_parts = []
         for msg in messages:
             role = msg.get("role", "user")
@@ -409,18 +427,12 @@ class AutoLLM(BaseChatModel):
             if k not in excluded_params:
                 gen_kwargs[k] = v
         
-        # Generate with automatic mixed precision if GPU available
+        # CRITICAL: Don't use autocast - model already has consistent dtype
         if self.num_gpus > 0 and torch.cuda.is_available():
-            try:
-                with torch.amp.autocast('cuda', enabled=True):
-                    outputs = self.pipe(formatted_input, **gen_kwargs)
-            except Exception as e:
-                print(f"AMP failed, using standard precision: {e}")
-                outputs = self.pipe(formatted_input, **gen_kwargs)
+            outputs = self.pipe(formatted_input, **gen_kwargs)
         else:
             outputs = self.pipe(formatted_input, **gen_kwargs)
         
-        # Extract text from outputs
         return self._extract_text(outputs)
     
     def _extract_text(self, outputs) -> str:
@@ -462,8 +474,6 @@ USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
 print("Initializing default local LLM instance...")
 
 
-
-
 # Example usage
 if __name__ == "__main__":
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -471,7 +481,7 @@ if __name__ == "__main__":
     try:
         local_llm = AutoLLM(
             model_id=MODEL_ID,
-            dtype="auto",
+            dtype="bfloat16",
             load_in_8bit=USE_8BIT,
             load_in_4bit=USE_4BIT
         )
@@ -485,7 +495,6 @@ if __name__ == "__main__":
             load_in_4bit=False
         )
 
-    # Test the LangChain interface
     messages = [
         SystemMessage(content="You are a helpful assistant."),
         HumanMessage(content="Explain quantum mechanics in one sentence.")

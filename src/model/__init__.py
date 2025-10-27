@@ -8,12 +8,7 @@ def set_llm():
     USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
     local = os.environ.get("LOCAL")
     if bool(local): 
-        llm = AutoLLM(
-            model_id=MODEL_ID,
-            dtype="auto",
-            load_in_8bit=USE_8BIT,
-            load_in_4bit=USE_4BIT
-        )
+        llm = AutoLLM()
     else: 
         llm = remote_llm
         

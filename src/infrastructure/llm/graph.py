@@ -28,12 +28,17 @@ def router_node(state: MainState) -> MainState:
     agent_names = get_graph_names()
     
     # Use LLM to determine routing
-    routing_prompt = f"""Based on the user's message, determine which agent should handle it.
-    Available agents: {', '.join(agent_names)}
+    routing_prompt = f"""You must respond with ONLY ONE WORD - the agent name, nothing else.
+
+    Available agents:
+    - search_agent: For web searches
+    - test_agent: For creating unit tests
+    - comment_agent: For documenting code
+    - investment_agent: For stock analysis and investment advice
 
     User message: {last_message}
 
-    Respond with ONLY the agent name, nothing else."""
+    Respond with ONLY the agent name (one word):"""
     
     routing_messages = [{"role": "user", "content": routing_prompt}]
     response = llm.invoke(routing_messages)
