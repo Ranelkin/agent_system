@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from typing_extensions import TypedDict
 from ....shared.log_config import setup_logging
 from ....infrastructure.mcp.client import get_mcp_manager
-from ....model.agent import llm
+from ....model import llm
 import re
 
 logger = setup_logging("investment_agent")

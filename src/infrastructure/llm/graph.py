@@ -3,7 +3,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing import Annotated
 from typing_extensions import TypedDict
-from ...model.agent import llm
+from ...model import llm
 from ...shared.log_config import setup_logging
 from ...core.services.grouped_tools import get_available_graphs, get_graph_names
 
@@ -29,11 +29,11 @@ def router_node(state: MainState) -> MainState:
     
     # Use LLM to determine routing
     routing_prompt = f"""Based on the user's message, determine which agent should handle it.
-Available agents: {', '.join(agent_names)}
+    Available agents: {', '.join(agent_names)}
 
-User message: {last_message}
+    User message: {last_message}
 
-Respond with ONLY the agent name, nothing else."""
+    Respond with ONLY the agent name, nothing else."""
     
     routing_messages = [{"role": "user", "content": routing_prompt}]
     response = llm.invoke(routing_messages)

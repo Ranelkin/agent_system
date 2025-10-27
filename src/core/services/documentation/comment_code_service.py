@@ -7,7 +7,7 @@ from ....infrastructure.mcp.client import get_mcp_manager
 import re
 import json
 from ....util.FileBase import FileBase
-from ....model import remote_llm
+from ....model import llm
 logger = setup_logging("comment_agent")
 
 class CommentState(TypedDict):
@@ -75,7 +75,7 @@ def comment_codebase(dir: str) -> dict:
             DO NOT change already existing code"""
 
             logger.info(f"Sending file to LLM for processing: {f}")
-            updated_file = remote_llm.invoke([{"role": "user", "content": prompt + content}])
+            updated_file = llm.invoke([{"role": "user", "content": prompt + content}])
             logger.info(f"Received response from LLM, length: {len(updated_file.content) if updated_file else 0}")
 
             if updated_file:

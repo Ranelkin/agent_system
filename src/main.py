@@ -1,7 +1,9 @@
+import argparse
+import os 
 from .shared.log_config import setup_logging
 from dotenv import load_dotenv
 from .chat_session import chat_session
-import argparse
+
 
 load_dotenv()
 
@@ -16,6 +18,8 @@ def main():
     args = parser.parse_args()
     if args.local: 
         LOCAL = True 
+    
+    os.environ['LOCAL'] = True 
     
     chat_session(LOCAL)
 

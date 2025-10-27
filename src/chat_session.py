@@ -5,14 +5,14 @@ from .shared.log_config import setup_logging
 
 logger = setup_logging("chat_session")
 
-def chat_session(local=False):
+def chat_session():
     """Main chat session with MCP + LangGraph integration"""
     load_dotenv()
     
     manager = get_mcp_manager()
     
     try:
-        logger.info("\n🤖 AI Assistant ready!")
+        logger.info("\n AI Assistant ready!")
         logger.info("Available commands:")
         logger.info("  - 'search for X' - Web search")
         logger.info("  - 'create tests for /path' - Generate unit tests")
