@@ -3,11 +3,9 @@ from .local_llm import  AutoLLM
 import os 
 
 def set_llm(): 
-    MODEL_ID = os.environ.get("LLM_MODEL_ID", "openai/gpt-oss-20b")
-    USE_8BIT = os.environ.get("USE_8BIT", "false").lower() == "true"
-    USE_4BIT = os.environ.get("USE_4BIT", "false").lower() == "true"
+    
     local = os.environ.get("LOCAL")
-    if bool(local): 
+    if local=='True': 
         llm = AutoLLM()
     else: 
         llm = remote_llm

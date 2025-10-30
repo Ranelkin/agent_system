@@ -1,10 +1,15 @@
-from langchain_tavily import TavilySearch
-
+from tavily import TavilyClient 
 from ....shared.config import AppConfig
+from dotenv import load_dotenv
 
+load_dotenv()
 config = AppConfig()
 
-web_search = TavilySearch(max_results=2)
+tavily_client = TavilyClient()
 
 def search_web(search: str): 
-    return web_search.invoke(search)
+    return tavily_client.search(search, include_answer=True)
+
+if __name__ == '__main__': 
+    result = search_web("What is quantum mechanics?")
+    print(result['answer'])
