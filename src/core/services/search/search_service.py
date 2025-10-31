@@ -15,8 +15,8 @@ class SearchState(TypedDict):
 def perform_web_search(search_term: str) -> str:
     """Perform a web search and return results as a string"""
     logger.info(f"Performing web search for: {search_term}")
-    results = search_web(search_term)
-    return str(results)
+    result = search_web(search_term)
+    return result
 
 # Graph node function - uses state
 def search_node(state: SearchState) -> SearchState:
