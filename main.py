@@ -1,6 +1,5 @@
-import chainlit as cl
-import sys
-import os
+import streamlit as st
+import sys, os
 from dotenv import load_dotenv
 
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -12,112 +11,136 @@ from src.infrastructure.mcp.client import get_mcp_manager, shutdown_mcp
 from src.shared.log_config import setup_logging
 
 load_dotenv()
-logger = setup_logging("chainlit_app")
+logger = setup_logging("streamlit_app")
 
-@cl.on_chat_start
-async def start():
-    """Initialize MCP connection when chat starts"""
-    try:
-        manager = get_mcp_manager()
-        logger.info("MCP manager initialized")
-        
-        await cl.Message(
-            content="🤖 **AI Assistant Ready!**\n\n"
-            "- 🔍 Web searches\n"
-            "- 🧪 Unit tests\n"
-            "- 📝 Documentation\n"
-            "- 📊 Investment analysis\n\n"
-            "What would you like to do?"
-        ).send()
-    except Exception as e:
-        logger.error(f"Error in chat start: {e}", exc_info=True)
+def extract_clean_text(content):
+    """Extract clean text from various message formats"""
+    if isinstance(content, str):
+        if "structuredContent=" in content:
+            import re
+            match = re.search(r"'result':\s*'([^']+)'", content)
+            if match:
+                return match.group(1)
+        return content
+    return str(content)
 
-@cl.on_message
-async def main(message: cl.Message):
-    """Handle user messages"""
-    
-    agent_steps = {}
-    
-    try:
-        # Process graph synchronously (LangGraph's stream is blocking)
-        for event in main_graph.stream(
-            {"messages": [{"role": "user", "content": message.content}]},
-            stream_mode="updates",
-            config={"recursion_limit": 50}
-        ):
-            for node_name, node_output in event.items():
-                logger.info(f"Processing node: {node_name}")
-                
-                # Map node names to friendly names
-                step_names = {
-                    "router": "🔀 Routing",
-                    "extract_ticker": "🎯 Extracting Ticker",
-                    "fetch_data": "📡 Fetching Market Data",
-                    "fundamental": "📊 Fundamental Analysis",
-                    "technical": "📈 Technical Analysis",
-                    "mediator": "🎓 Final Recommendation",
-                    "search_agent": "🔍 Web Search",
-                    "test_agent": "🧪 Creating Tests",
-                    "comment_agent": "📝 Documentation",
-                }
-                
-                step_name = step_names.get(node_name, f"⚙️ {node_name}")
-                
-                # Create or get step
-                if node_name not in agent_steps:
-                    step = cl.Step(name=step_name, type="tool")
-                    await step.__aenter__()
-                    agent_steps[node_name] = step
-                else:
-                    step = agent_steps[node_name]
-                
-                # Extract content from node output
-                if "messages" in node_output:
-                    messages = node_output["messages"]
-                    for msg in messages:
-                        if isinstance(msg, dict):
-                            content = msg.get("content", "")
-                        else:
-                            content = getattr(msg, "content", "")
-                        
-                        if content and content.strip():
-                            step.output = content
-                            await step.send()
+st.set_page_config(page_title="AI Assistant", layout="wide")
+st.title("AI Assistant")
+
+with st.sidebar:
+    st.markdown(
+        """
+        - **Web searches**  
+        - **Unit tests**  
+        - **Documentation**  
+        - **Investment analysis**  
+        """
+    )
+    if st.button("End Session"):
+        shutdown_mcp()
+        st.success("Session cleaned up")
+        st.rerun()
+
+@st.cache_resource
+def init_mcp():
+    manager = get_mcp_manager()
+    logger.info("MCP manager initialized")
+    return manager
+
+init_mcp()
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
+
+if prompt := st.chat_input("What would you like to do?"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        answer_ph = st.empty()
+        input_data = {"messages": [{"role": "user", "content": prompt}]}
+        final_answer = ""
         
-        # Close all steps
-        for step in agent_steps.values():
-            await step.__aexit__(None, None, None)
-        
-        # Send final message
-        last_node = list(event.keys())[-1]
-        final_output = event[last_node]
-        
-        if "messages" in final_output and final_output["messages"]:
-            last_msg = final_output["messages"][-1]
-            content = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        try:
+            step_container = st.container()
             
-            if content:
-                await cl.Message(content=content).send()
+            step_names = {
+                "router": "🔀 Routing",
+                "extract_ticker": "🎯 Extracting Ticker",
+                "fetch_data": "📡 Fetching Market Data",
+                "fundamental": "📊 Fundamental Analysis",
+                "technical": "📈 Technical Analysis",
+                "mediator": "🎓 Final Recommendation",
+                "search_agent": "🔍 Web Search",
+                "test_agent": "🧪 Creating Tests",
+                "comment_agent": "📝 Documentation",
+            }
+            
+            last_state = None
+            
+            for event in main_graph.stream(
+                input_data,
+                stream_mode="updates",
+                config={"recursion_limit": 50},
+            ):
+                for node_name, node_output in event.items():
+                    friendly_name = step_names.get(node_name, f"⚙️ {node_name}")
+                    
+                    with step_container.expander(friendly_name, expanded=False):
+                        if "messages" in node_output:
+                            msgs = node_output["messages"]
+                            for msg in msgs:
+                                if isinstance(msg, dict):
+                                    role = msg.get("role", "")
+                                    txt = msg.get("content", "")
+                                else:
+                                    role = getattr(msg, "type", "assistant")
+                                    txt = getattr(msg, "content", "")
+                                
+                                clean_txt = extract_clean_text(txt)
+                                if clean_txt and clean_txt.strip():
+                                    st.markdown(clean_txt)
+                    
+                    last_state = node_output
+            
+            if last_state and "messages" in last_state:
+                final_msgs = last_state["messages"]
+                
+                for msg in reversed(final_msgs):
+                    if isinstance(msg, dict):
+                        role = msg.get("role", "").lower()
+                        txt = msg.get("content", "")
+                    else:
+                        role = getattr(msg, "type", "").lower()
+                        txt = getattr(msg, "content", "")
+                    
+                    if role not in {"user", "human"} and txt:
+                        final_answer = extract_clean_text(txt)
+                        break
+            
+            if final_answer:
+                answer_ph.markdown(final_answer)
+            else:
+                answer_ph.error("No final answer – check the steps above.")
         
-    except Exception as e:
-        logger.error(f"Error: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Graph error: {e}", exc_info=True)
+            answer_ph.error(f"Error: {e}")
         
-        # Close any open steps
-        for step in agent_steps.values():
-            try:
-                await step.__aexit__(None, None, None)
-            except:
-                pass
-        
-        await cl.Message(
-            content=f"❌ **Error**: {str(e)}\n\nPlease try again."
-        ).send()
+        final_display = final_answer or "*(no answer)*"
+        st.session_state.messages.append({"role": "assistant", "content": final_display})
 
-@cl.on_chat_end
-def end():
-    """Cleanup when chat ends"""
+def _shutdown():
     try:
         shutdown_mcp()
-        logger.info("Session ended")
-    except Exception as e:
-        logger.error(f"Shutdown error: {e}", exc_info=True)
+        logger.info("MCP shutdown")
+    except Exception as ex:
+        logger.error(f"Shutdown error: {ex}")
+
+import atexit
+atexit.register(_shutdown)

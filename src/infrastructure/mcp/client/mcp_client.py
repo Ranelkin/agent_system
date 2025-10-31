@@ -8,7 +8,6 @@ logger = setup_logging("session_manager")
 
 class MCPTool:
     def __init__(self, server_command):
-        """Initialize MCPTool with server command details and setup for connection."""
         self.server_command = server_command
         self.mcp_server = StdioServerParameters(
             command="python3",
@@ -18,68 +17,48 @@ class MCPTool:
         self.session: Optional[ClientSession] = None
         self.read = None
         self.write = None
-        self.client_context = None
         self.loop = None
-        
-    async def _async_connect(self): 
-        """Async connection to MCP server"""
-        self.client_context = stdio_client(self.mcp_server)
-        self.read, self.write = await self.client_context.__aenter__()
-        self.session = ClientSession(self.read, self.write)
-        await self.session.__aenter__()
-        await self.session.initialize()
-        logger.info("MCP client connected")
-        
+        self._context_task: Optional[asyncio.Task] = None  
+        self._exit_event: Optional[asyncio.Event] = None  
+
     def connect(self):
         """Synchronous connection wrapper"""
-        try: 
-            self.loop = asyncio.get_running_loop()
-            import nest_asyncio
-            nest_asyncio.apply()
-        except RuntimeError: 
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-        
-        self.loop.run_until_complete(self._async_connect())
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+
+        async def _run_context():
+            """Run the full context lifecycle in one task."""
+            async with stdio_client(self.mcp_server) as (read, write):
+                self.read, self.write = read, write
+                async with ClientSession(read, write) as session:
+                    self.session = session
+                    await session.initialize()
+                    connect_future.set_result(None)  
+                    self._exit_event = asyncio.Event()
+                    await self._exit_event.wait()  
+
+        connect_future = connect_future = self.loop.create_future() 
+        self._context_task = self.loop.create_task(_run_context())
+        self.loop.run_until_complete(connect_future)  
         logger.info("MCP client connection established")
-        
-    async def _async_disconnect(self): 
-        """Async disconnection"""
-        if self.session: 
-            await self.session.__aexit__(None, None, None)
-        if self.client_context: 
-            await self.client_context.__aexit__(None, None, None)
-        logger.info("MCP client disconnected")
         
     def disconnect(self):
         """Synchronous disconnection wrapper"""
-        try: 
-            loop = asyncio.get_running_loop()
-            import nest_asyncio
-            nest_asyncio.apply()
-        except RuntimeError: 
-            loop = asyncio.get_event_loop()
-            
-        loop.run_until_complete(self._async_disconnect())
-    
-    async def _async_call_tool(self, tool_name: str, args: Dict[str, Any]) -> str: 
-        """Asynchronous tool call wrapper"""
-        result = await self.session.call_tool(tool_name, arguments=args)
-        import json 
-        json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
-        
+        if not self.loop or not self._context_task:
+            return
+        if self._exit_event:
+            self._exit_event.set() 
+        self.loop.run_until_complete(self._context_task)  
+        self.loop.close()
+        logger.info("MCP client connection closed")
+
     def call_tool(self, tool_name: str, args: Dict[str, Any]) -> str:
         """Synchronous tool call wrapper"""
-        try: 
-            loop = asyncio.get_running_loop()
-            import nest_asyncio
-            nest_asyncio.apply()
-            return loop.run_until_complete(self._async_call_tool(tool_name, args))
-        except RuntimeError: 
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(self._async_call_tool(tool_name, args=args))
-    
-    
-
-
- 
+        if self.session is None:
+            self.connect()
+        async def _call():
+            """Call a tool asynchronously and format the result as a JSON string."""
+            result = await self.session.call_tool(tool_name, arguments=args)
+            return json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
+            
+        return self.loop.run_until_complete(_call())
