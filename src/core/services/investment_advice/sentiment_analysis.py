@@ -15,11 +15,10 @@ def fetch_sentiment_data(state: InvestmentState) -> InvestmentState:
     logger.info('Analyzing current market sentiment')
     mcp = get_mcp_manager()
     sentiment_query = f"{ticker} investment sentiment analysis"
-    #####################
-    # Place holder for market sentiment fetching 
-    # PLACEHOLDER 
+   
+    
     sentiment_data = mcp.mcp_tool.call_tool("perform_web_search", {"search_term": sentiment_query})
-    #####################
+    
     InvestmentState['sentiment_data'] = sentiment_data
     
     logger.info(f'Current market sentiment: {sentiment_data}')

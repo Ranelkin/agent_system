@@ -171,6 +171,8 @@ def mediator_node(state: InvestmentState) -> InvestmentState:
     TECHNICAL ANALYST'S VIEW:
     {state.get('technical_analysis', 'Not available')}
     
+    SENTIMENT ANALYST'S VIEW: 
+    {state.get('sentiment_analysis', 'Not available')}
     Provide a final synthesis:
     1. **Consensus Points**: Where do the analysts agree?
     2. **Disagreements**: Where do they differ and why?
