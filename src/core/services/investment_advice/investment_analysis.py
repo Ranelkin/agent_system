@@ -1,22 +1,12 @@
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from typing import Annotated, Literal
-from typing_extensions import TypedDict
+from typing import Literal
 from ....shared.log_config import setup_logging
 from ....infrastructure.mcp.client import get_mcp_manager
 from ....model import llm
+from .util import InvestmentState
 import re
 
 logger = setup_logging("investment_agent")
-
-class InvestmentState(TypedDict):
-    messages: Annotated[list, add_messages]
-    ticker: str
-    company_data: str | None
-    fundamental_analysis: str | None
-    technical_analysis: str | None
-    discussion_round: int
-    final_recommendation: str | None
 
 
 def fetch_company_data(state: InvestmentState) -> InvestmentState:
@@ -182,7 +172,7 @@ def mediator_node(state: InvestmentState) -> InvestmentState:
     {state.get('technical_analysis', 'Not available')}
     
     Provide a final synthesis:
-    1. **Consensus Points**: Where do both analysts agree?
+    1. **Consensus Points**: Where do the analysts agree?
     2. **Disagreements**: Where do they differ and why?
     3. **Final Recommendation**: BUY/HOLD/SELL with conviction level (1-10)
     4. **Risk Assessment**: Key risks to this recommendation
@@ -208,24 +198,23 @@ def route_discussion(state: InvestmentState) -> Literal["fundamental", "technica
     """Routes between agents for two-fold discussion"""
     round_num = state.get("discussion_round", 0)
     
-    # Round 0: Fundamental agent's initial analysis
-    # Round 1: Technical agent's initial analysis
-    # Round 2: Fundamental agent responds to technical
-    # Round 3: Technical agent responds to fundamental
-    # Round 4: Mediator synthesizes
-    
-    if round_num == 0:
-        return "fundamental"
-    elif round_num == 1:
-        return "technical"
-    elif round_num == 2:
-        return "fundamental"
-    elif round_num == 3:
-        return "technical"
-    elif round_num == 4:
+    # Round 0: Fundamental, technical, sentiment agent's initial analysis
+    # Round 1: Fundamental, technical, sentiment agent's responds to the other agents analyses
+    # Round 3: Synthecise 
+    # The formula for ammount of round = 2 * agent_ammount + 1 
+    if round_num == 7: 
         return "mediator"
-    else:
+    
+    assign = round_num % 3 
+    if assign == 0: 
+        return "fundamental"
+    elif assign == 1: 
+        return "technical"
+    elif assign == 2: 
+        return "sentiment"
+    else: 
         return "end"
+    
 
 
 def create_investment_agent_graph() -> StateGraph:
@@ -251,6 +240,7 @@ def create_investment_agent_graph() -> StateGraph:
         {
             "fundamental": "fundamental",
             "technical": "technical",
+            "sentiment": "sentiment",
             "mediator": "mediator",
             "end": END
         }
