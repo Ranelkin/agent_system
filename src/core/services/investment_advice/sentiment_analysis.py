@@ -5,29 +5,25 @@ from .util import InvestmentState
 
 logger = setup_logging('Sentiment Agent')
 
-def fetch_sentiment_data(state: InvestmentState) -> InvestmentState
+def fetch_sentiment_data(state: InvestmentState) -> InvestmentState:
     """Fetches company & market sentimet data - handles only direct graph 
     invocation
     """
-    ticker = state.get('ticker')
+    ticker = state.get('ticker', 'the market')
     # If no ticker is given the task is to analyze market sentiment 
-    if not ticker: 
-        logger.info('Analyzing current market sentiment')
-    
-        #####################
-        # Place holder for market sentiment fetching 
-        # PLACEHOLDER 
-        sentiment_data = ''
-        #####################
-        InvestmentState['sentiment_data'] = sentiment
-        
-        logger.info(f'Current market sentiment: {sentiment}')
-        
-    else: 
-        logger.info(f'Fetching sentiment data for ticker: {ticker}')
-        
+ 
+    logger.info('Analyzing current market sentiment')
     mcp = get_mcp_manager()
+    sentiment_query = f"{ticker} investment sentiment analysis"
+    #####################
+    # Place holder for market sentiment fetching 
+    # PLACEHOLDER 
+    sentiment_data = mcp.mcp_tool.call_tool("perform_web_search", {"search_term": sentiment_query})
+    #####################
+    InvestmentState['sentiment_data'] = sentiment_data
     
+    logger.info(f'Current market sentiment: {sentiment_data}')
+ 
         
     return {
         "ticker": ticker.upper() if ticker else ''
@@ -37,7 +33,7 @@ def fetch_sentiment_data(state: InvestmentState) -> InvestmentState
                      "content": f"Fetched sentiment data for {ticker if ticker else 'Market'}" }]
     }
 
-def sentiment_agent_node(state: InvestmentState) -> InvestmentState
+def sentiment_agent_node(state: InvestmentState) -> InvestmentState:
     """_summary_"""
     logger.info(f"Fundamental agent analyzing {state['ticker'] if state['ticker'] else 'Market sentiment'}")
     
