@@ -28,7 +28,7 @@ def fetch_sentiment_data(state: InvestmentState) -> InvestmentState:
         "ticker": ticker.upper() if ticker else '',
         "sentiment_data": sentiment_data,
         "discussion_round": state.get('discussion_round', 0),
-        "messages": [{"role": "sentiment_analyst", 
+        "messages": [{"role": "assistant", 
                      "content": f"Fetched sentiment data for {ticker if ticker else 'Market'}" }]
     }
 
@@ -68,6 +68,6 @@ def sentiment_agent_node(state: InvestmentState) -> InvestmentState:
     response = llm.invoke([{"role": "user", "content": context}])
     logger.info(response.content)
     return {
-        "sentiment_analysis": response.content
-        "messages": [{"role": "sentiment_analyst", "content": f"[Sentiment Analyst]: {response.content}"}]
+        "sentiment_analysis": response.content,
+        "messages": [{"role": "assistant", "content": f"[Sentiment Analyst]: {response.content}"}]
     }

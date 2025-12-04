@@ -86,29 +86,26 @@ def route_to_agent(state: MainState) -> Literal["search_agent", "test_agent", "c
     return agent_start_map.get(next_agent, "search_agent")
 
 
-def route_investment_steps(state: MainState) -> Literal["fundamental", "technical", "mediator", "end"]:
+def route_investment_steps(state: MainState) -> Literal["fundamental", "technical", "sentiment", "mediator", "end"]:
     """Routes between investment agent steps for multi-round discussion"""
-    # CA: Controls the flow through the investment agent's multi-agent discussion
     round_num = state.get("discussion_round", 0)
     
-    # Round 0: Fundamental agent's initial analysis
-    # Round 1: Technical agent's initial analysis
-    # Round 2: Fundamental agent responds to technical
-    # Round 3: Technical agent responds to fundamental
-    # Round 4: Mediator synthesizes
+    # Round 0: fundamental, 1: technical, 2: sentiment
+    # Round 3: fundamental, 4: technical, 5: sentiment
+    # Round 6: mediator
     
-    if round_num == 0:
-        return "fundamental"
-    elif round_num == 1:
-        return "technical"
-    elif round_num == 2:
-        return "fundamental"
-    elif round_num == 3:
-        return "technical"
-    elif round_num == 4:
+    if round_num == 6:
         return "mediator"
-    else:
+    elif round_num > 6:
         return "end"
+    
+    assign = round_num % 3
+    if assign == 0:
+        return "fundamental"
+    elif assign == 1:
+        return "technical"
+    else:
+        return "sentiment"
 
 
 def create_main_graph() -> StateGraph:
@@ -212,6 +209,7 @@ def create_main_graph() -> StateGraph:
         {
             "fundamental": "fundamental",
             "technical": "technical",
+            "sentiment": "sentiment",
             "mediator": "mediator",
             "end": END
         }

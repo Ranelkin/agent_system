@@ -3,7 +3,7 @@ from typing import Literal
 from ....shared.log_config import setup_logging
 from ....infrastructure.mcp.client import get_mcp_manager
 from ....model import llm
-from .sentiment_analysis import sentiment_agent_node
+from .sentiment_analysis import sentiment_agent_node, fetch_sentiment_data
 from .util import InvestmentState
 import re
 
@@ -197,7 +197,7 @@ def increment_round(state: InvestmentState) -> InvestmentState:
     return {"discussion_round": current_round + 1}
 
 
-def route_discussion(state: InvestmentState) -> Literal["fundamental", "technical", "mediator", "end"]:
+def route_discussion(state: InvestmentState) -> Literal["fundamental", "technical", "sentiment", "mediator", "end"]:
     """Routes between agents for two-fold discussion"""
     round_num = state.get("discussion_round", 0)
     
