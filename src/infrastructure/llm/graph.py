@@ -8,6 +8,7 @@ from ...shared.log_config import setup_logging
 from ...core.services.search.search_service import search_node
 from ...core.services.test.test_service import create_unit_tests
 from ...core.services.documentation.comment_code_service import comment_codebase_node
+from ...core.services.investment_advice.sentiment_analysis import sentiment_agent_node 
 from ...core.services.investment_advice.investment_analysis import (
     extract_ticker_node,
     fetch_company_data,
@@ -176,7 +177,7 @@ def create_main_graph() -> StateGraph:
     builder.add_node("technical", technical_agent_node)
     builder.add_node("mediator", mediator_node)
     builder.add_node("increment", increment_round)
-    
+    builder.add_node("sentiment", sentiment_agent_node)
     # ========== EDGES: START & ROUTER ==========
     builder.add_edge(START, "router")
     
@@ -219,7 +220,7 @@ def create_main_graph() -> StateGraph:
     # After each analyst speaks, increment round and route again
     builder.add_edge("fundamental", "increment")
     builder.add_edge("technical", "increment")
-    
+    builder.add_edge("sentiment", "increment")
     # Mediator produces final recommendation → END
     builder.add_edge("mediator", END)
     

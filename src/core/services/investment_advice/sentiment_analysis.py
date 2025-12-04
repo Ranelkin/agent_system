@@ -2,7 +2,7 @@ from ....shared.log_config import setup_logging
 from ....infrastructure.mcp.client import get_mcp_manager
 from ....model import llm
 from .util import InvestmentState
-
+ 
 logger = setup_logging('Sentiment Agent')
 
 def fetch_sentiment_data(state: InvestmentState) -> InvestmentState:
@@ -25,10 +25,10 @@ def fetch_sentiment_data(state: InvestmentState) -> InvestmentState:
  
         
     return {
-        "ticker": ticker.upper() if ticker else ''
-        "sentiment": sentiment_data
-        "discussion_round": InvestmentState.discussion_round
-        "messages" [{"role": "sentiment_analyst", 
+        "ticker": ticker.upper() if ticker else '',
+        "sentiment_data": sentiment_data,
+        "discussion_round": state.get('discussion_round', 0),
+        "messages": [{"role": "sentiment_analyst", 
                      "content": f"Fetched sentiment data for {ticker if ticker else 'Market'}" }]
     }
 

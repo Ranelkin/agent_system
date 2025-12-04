@@ -3,6 +3,7 @@ from typing import Literal
 from ....shared.log_config import setup_logging
 from ....infrastructure.mcp.client import get_mcp_manager
 from ....model import llm
+from .sentiment_analysis import sentiment_agent_node
 from .util import InvestmentState
 import re
 
@@ -230,7 +231,7 @@ def create_investment_agent_graph() -> StateGraph:
     builder.add_node("technical", technical_agent_node)
     builder.add_node("mediator", mediator_node)
     builder.add_node("increment", increment_round)
-    
+    builder.add_node("sentiment", sentiment_agent_node)
     builder.add_edge(START, "extract_ticker")  
     builder.add_edge("extract_ticker", "fetch_data")  
     builder.add_edge("fetch_data", "increment")
@@ -251,6 +252,7 @@ def create_investment_agent_graph() -> StateGraph:
     # After each agent speaks, increment and route again
     builder.add_edge("fundamental", "increment")
     builder.add_edge("technical", "increment")
+    builder.add_edge("sentiment", "increment")
     builder.add_edge("mediator", END)
     
     return builder.compile()
