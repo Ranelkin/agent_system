@@ -63,7 +63,16 @@ def fundamental_agent_node(state: InvestmentState) -> InvestmentState:
     
     # First round: Initial analysis
     if round_num == 0:
-        context = f"""You are a fundamental analysis expert.
+        context = f"""As a fundamental financial equity
+        analyst your primary responsibility is to analyze the most
+        recent 10K report provided for a company. You have access to a
+        powerful tool that can help you extract relevant information
+        from the 10K. Your analysis should be based solely on the
+        information that you retrieve using this tool. You can interact
+        with this tool using natural language queries. The tool will
+        understand your requests and return relevant text snippets
+        and data points from the 10K document. Keep checking if you
+        have answered the users question to avoid looping
         Analyze {state['ticker']} based on this data:
         
         {state.get('company_data', 'No data available')}
@@ -73,8 +82,16 @@ def fundamental_agent_node(state: InvestmentState) -> InvestmentState:
     
     # Second round: Response to technical agent
     else:
-        context = f"""You are a fundamental analysis expert.
-        
+        context = f"""As a fundamental financial equity
+        analyst your primary responsibility is to analyze the most
+        recent 10K report provided for a company. You have access to a
+        powerful tool that can help you extract relevant information
+        from the 10K. Your analysis should be based solely on the
+        information that you retrieve using this tool. You can interact
+        with this tool using natural language queries. The tool will
+        understand your requests and return relevant text snippets
+        and data points from the 10K document. Keep checking if you
+        have answered the users question to avoid looping
         Your previous analysis:
         {state.get('fundamental_analysis', '')}
         
@@ -100,7 +117,13 @@ def technical_agent_node(state: InvestmentState) -> InvestmentState:
     
     # First round: Initial analysis
     if round_num == 0:
-        context = f"""You are a technical/momentum analysis expert.
+        context = f"""As a valuation equity analyst, your pri-
+        mary responsibility is to analyze the valuation trends of a
+        given asset or portfolio over an extended time horizon. To com-
+        plete the task, you must analyze the historical valuation data
+        of the asset or portfolio provided, identify trends and patterns
+        in valuation metrics over time, and interpret the implications
+        of these trends for investors or stakeholders.  
         Analyze {state['ticker']} based on this data:
         
         {state.get('company_data', 'No data available')}
@@ -111,8 +134,13 @@ def technical_agent_node(state: InvestmentState) -> InvestmentState:
     
     # Second round: Response to fundamental agent
     else:
-        context = f"""You are a technical/momentum analysis expert.
-        
+        context = f"""As a valuation equity analyst, your pri-
+        mary responsibility is to analyze the valuation trends of a
+        given asset or portfolio over an extended time horizon. To com-
+        plete the task, you must analyze the historical valuation data
+        of the asset or portfolio provided, identify trends and patterns
+        in valuation metrics over time, and interpret the implications
+        of these trends for investors or stakeholders.        
         Your previous analysis:
         {state.get('technical_analysis', '')}
         

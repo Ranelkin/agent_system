@@ -40,7 +40,11 @@ def sentiment_agent_node(state: InvestmentState) -> InvestmentState:
     
     # First round only provide market / stock sentiment 
     if round_num == 0: 
-        context = f"""You are a market sentiment expert. 
+        context = f"""As a sentiment equity analyst your pri-
+        mary responsibility is to analyze the financial news, analyst
+        ratings and disclosures related to the underlying security;
+        and analyze its implication and sentiment for investors or
+        stakeholders.
         Analyze {state['ticker'] if state['ticker'] else 'Market sentiment'} sentiment 
         based on this data: 
         
@@ -50,7 +54,11 @@ def sentiment_agent_node(state: InvestmentState) -> InvestmentState:
         """
     # Second round: Response to technical agent
     else: 
-        context = f"""You are a market sentiment expert. 
+        context = f"""As a sentiment equity analyst your pri-
+        mary responsibility is to analyze the financial news, analyst
+        ratings and disclosures related to the underlying security;
+        and analyze its implication and sentiment for investors or
+        stakeholders.
         Analyze {state['ticker'] if state['ticker'] else 'Market sentiment'} sentiment 
         based on this data: 
         
